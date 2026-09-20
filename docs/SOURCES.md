@@ -12,10 +12,15 @@
   <https://github.com/blakepiper/minarch/tree/f954da42f061c5e4806a33fec593315f002bd192>
   Post-install/preservation workflow reference; st source checksum; initial
   Xfe color settings from `config/xfe/xferc`. No runtime clone of Minarch.
+- ble.sh nightly: `d81fd54feb0d996fdff20dca27eaf0201f7015cc`
+  <https://github.com/akinomyoga/ble.sh/tree/d81fd54feb0d996fdff20dca27eaf0201f7015cc>
+  Installed from the nightly archive whose SHA-256 is
+  `1b9b78ea0633ac331df150bf178fcf86210ce5916db54fb713252a51cd67cb97`.
 
-A fresh temporary Git checkout verifies the exact Blix commit. Only configuration
-and patch files are used; no Blix/Minarch installer is executed. Temporary source
-checkouts are removed after installation. Upstream licenses remain applicable;
+A fresh temporary Git checkout verifies the exact Blix commit. Only configuration,
+patch files and the pinned ble.sh archive are used; no Blix/Minarch installer is
+executed. Temporary source checkouts and archives are removed after installation.
+Upstream licenses remain applicable;
 OXWM/st licenses are installed beside the locally built binaries. This repository
 does not claim authorship of the imported editor theme, plugins or upstream patches.
 

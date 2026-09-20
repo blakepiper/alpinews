@@ -60,7 +60,8 @@ jobs:
             configure_user
             export PATH="$HOME/.local/bin:$PATH"
             oxwm --validate "$HOME/.config/oxwm/config.lua"
-            diff -qr "$WORK/blix/home/przvl/config/nvim" "$HOME/.config/nvim"
+            make_nvim_config "$WORK/expected-nvim"
+            diff -qr "$WORK/expected-nvim" "$HOME/.config/nvim"
             nvim --headless -u NONE +qa
             ldd "$HOME/.local/bin/oxwm"
             ldd "$HOME/.local/bin/st"

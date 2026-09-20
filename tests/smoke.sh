@@ -13,10 +13,13 @@ has_st_terminfo() {
     return 1
 }
 export PATH="$HOME/.local/bin:$PATH"
-for cmd in oxwm st nvim firefox xfe dmenu pipewire wireplumber wpctl i3lock \
+for cmd in oxwm st st-bash bash nvim firefox xfe dmenu pipewire wireplumber wpctl i3lock \
     brightnessctl xrandr xclip alpinews-monitors alpinews-clipwatch; do
     check command -v "$cmd"
 done
+check bash -n "$HOME/.bashrc"
+check bash -n "$HOME/.bash_profile"
+check test -r "$HOME/.local/share/blesh/ble.sh"
 check oxwm --validate "${XDG_CONFIG_HOME:-$HOME/.config}/oxwm/config.lua"
 check has_st_terminfo
 check rc-service dbus status

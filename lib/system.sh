@@ -40,6 +40,11 @@ configure)
             esac
         fi
     done
+    # Bash is the supported interactive/login shell for the desktop profile.
+    if ! grep -qx '/bin/bash' /etc/shells; then
+        printf '%s\n' /bin/bash >> /etc/shells
+    fi
+    chsh -s /bin/bash "$user"
     # Alpine's supported Xorg device setup switches mdev to standalone eudev.
     setup-devd udev
     rc-update add dbus default
@@ -49,6 +54,14 @@ configure)
     put_file "$ROOT/config/input.rules" /etc/udev/rules.d/90-alpinews-input.rules
     put_file "$ROOT/config/iwlwifi.conf" /etc/modprobe.d/alpinews-iwlwifi.conf
     put_file "$ROOT/config/policies.json" /etc/firefox/policies/policies.json
+    mkdir -p /etc/acpi/LID
+    [ ! -L /etc/acpi/LID ] || die 'Refusing a symlinked ACPI lid-handler directory.'
+    (
+        REPLACE_CONFIG=1
+        put_file "$ROOT/config/lid-suspend-handler" /etc/acpi/LID/00000080 755
+    )
+    chown root:root /etc/acpi/LID/00000080
+    rc-update add acpid default
     # A distribution policy has precedence over /etc/firefox/policies.
     if [ -e /usr/lib/firefox/distribution/policies.json ]; then
         put_file "$ROOT/config/policies.json" /usr/lib/firefox/distribution/policies.json

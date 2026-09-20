@@ -55,18 +55,24 @@ trap 'exit 143' TERM HUP
 export ROOT WORK STATE REPLACE_CONFIG
 BLIX_REV=4a4b8017d07421796047e12edceba87e21e3f24e
 OXWM_REV=fc4ada9ac4ee8e34ace203290a2b14d10e4671cc
-export BLIX_REV OXWM_REV
+BLE_REV=d81fd54feb0d996fdff20dca27eaf0201f7015cc
+BLE_NIGHTLY_SHA256=1b9b78ea0633ac331df150bf178fcf86210ce5916db54fb713252a51cd67cb97
+export BLIX_REV OXWM_REV BLE_REV BLE_NIGHTLY_SHA256
 log "Fetching read-only Blix defaults at $BLIX_REV"
 fetch_repo https://github.com/blakepiper/blix.git "$BLIX_REV" "$WORK/blix"
 if [ "$CONFIG_ONLY" = 0 ]; then
     doas sh "$ROOT/lib/system.sh" packages "$(id -un)" "$REPLACE_CONFIG"
     . "$ROOT/lib/build.sh"
     build_desktop
+    . "$ROOT/lib/shell.sh"
+    install_blesh
 fi
 . "$ROOT/lib/configure.sh"
 configure_user
 if [ "$CONFIG_ONLY" = 0 ]; then
-    if diff -qr "$WORK/blix/home/przvl/config/nvim" "${XDG_CONFIG_HOME:-$HOME/.config}/nvim" >/dev/null 2>&1; then
+    expected_nvim="$WORK/expected-nvim"
+    make_nvim_config "$expected_nvim"
+    if diff -qr "$expected_nvim" "${XDG_CONFIG_HOME:-$HOME/.config}/nvim" >/dev/null 2>&1; then
         . "$ROOT/lib/editor.sh"
         prepare_editor
     else
@@ -79,7 +85,7 @@ if [ "$CONFIG_ONLY" = 0 ]; then
     fi
     apk info -v > "$STATE/packages-installed.txt"
 fi
-printf '%s\n' "Blix $BLIX_REV" "OXWM $OXWM_REV" 'st 0.9.3' > "$STATE/sources.txt"
+printf '%s\n' "Blix $BLIX_REV" "OXWM $OXWM_REV" "ble.sh $BLE_REV" 'st 0.9.3' > "$STATE/sources.txt"
 printf '\nAlpineWS configuration installed. Review every Preserved message above.\n'
 if [ "$CONFIG_ONLY" = 0 ]; then
     printf 'Reboot for device permissions/firmware, log in on a local TTY, then run startx.\n'

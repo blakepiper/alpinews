@@ -39,5 +39,5 @@ if not ok then
   io.stderr:write(tostring(err), "\n")
   vim.cmd.cquit(1)
 end
-print("PASS: unchanged Blix Tree-sitter bootstrap and native bash/json parsing")
+print("PASS: Blix Tree-sitter bootstrap and native bash/json parsing")
 vim.cmd("qa!")

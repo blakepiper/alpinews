@@ -1,0 +1,16 @@
+# Load ble.sh before interactive Bash settings so it can attach cleanly.
+if [[ $- == *i* && -r "$HOME/.local/share/blesh/ble.sh" ]]; then
+  source -- "$HOME/.local/share/blesh/ble.sh" --attach=none
+fi
+
+export PATH="$HOME/.local/bin:$PATH"
+export EDITOR=nvim
+export VISUAL=nvim
+
+if [[ $- == *i* ]]; then
+  alias ll='ls -lah'
+  alias vim='nvim'
+  alias v='nvim'
+fi
+
+[[ ! ${BLE_VERSION-} ]] || ble-attach

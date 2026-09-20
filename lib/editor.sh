@@ -1,5 +1,6 @@
 #!/bin/sh
-# Keep Blix's Lua files untouched. Seed only a missing/broken LuaLS tool.
+# Keep Blix's editor base untouched. The managed nvimide layout overlay is
+# applied before this stage; seed only a missing/broken LuaLS tool.
 prepare_editor() (
     set -eu
     umask 077

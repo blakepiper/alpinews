@@ -1,5 +1,6 @@
 #!/bin/sh
-# Shared by the installer and offline tests. BusyBox ash; no Bash/GNU tools.
+# Shared by the installer and offline tests. The installer stages remain POSIX;
+# Bash is installed separately as the user's interactive shell.
 log() { printf '\n==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 

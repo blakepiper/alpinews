@@ -3,6 +3,7 @@
 set -u
 export PATH="$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export LANG="${LANG:-C.UTF-8}"
+export SHELL=/bin/bash
 export EDITOR=nvim VISUAL=nvim
 export ENV="${XDG_CONFIG_HOME:-$HOME/.config}/ash/rc"
 export XDG_CURRENT_DESKTOP=OXWM XDG_SESSION_TYPE=x11
@@ -60,6 +61,19 @@ xset r rate 200 50
 xset s off
 xset +dpms
 xset dpms 0 0 0
+# Keep the built-in keyboard on the standard US map. The system Xorg rule
+# applies altwin:swap_alt_win only to the external USB keyboard.
+built_in_keyboard_id=''
+for keyboard_id in $(xinput list --id-only 2>/dev/null); do
+    keyboard_name=$(xinput list --name-only "$keyboard_id" 2>/dev/null || :)
+    if [ "$keyboard_name" = 'AT Translated Set 2 keyboard' ]; then
+        built_in_keyboard_id=$keyboard_id
+        break
+    fi
+done
+if [ -n "$built_in_keyboard_id" ]; then
+    setxkbmap -synch -device "$built_in_keyboard_id" -model pc105 -layout us -option ''
+fi
 alpinews-monitors || :
 # The stock packages contain OpenRC user units, but this X session owns its
 # audio processes. Do not enable those units in parallel.

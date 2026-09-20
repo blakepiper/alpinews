@@ -38,6 +38,9 @@ printf '%s\n' 'https://dl-cdn.alpinelinux.org/alpine/v3.24/main' \
 check_repositories "$tmp/repos"
 printf '%s\n' 'https://dl-cdn.alpinelinux.org/alpine/edge/main' > "$tmp/repos"
 if (check_repositories "$tmp/repos"); then die 'Mixed/edge repositories were accepted.'; fi
+grep -qx 'bash' "$ROOT/config/packages" || die 'Bash is missing from the runtime manifest.'
+grep -qx 'shadow' "$ROOT/config/packages" || die 'Shadow is missing from the runtime manifest.'
+grep -Fq 'chsh -s /bin/bash' "$ROOT/lib/system.sh" || die 'The installer does not select Bash as the login shell.'
 
 mkdir -p "$tmp/bin" "$tmp/home/.config/alpinews"
 cat > "$tmp/bin/xrandr" <<'MOCK'
@@ -108,7 +111,8 @@ if SCROT_FAIL=1 sh "$ROOT/bin/screenshot-region"; then die 'Cancelled screenshot
 [ -z "$(find "$HOME/Pictures/Screenshots" -name '.capture.*')" ]
 
 for file in "$ROOT/install.sh" "$ROOT/lib/"*.sh "$ROOT/bin/"* "$ROOT/tests/"*.sh \
-    "$ROOT/config/xinitrc" "$ROOT/config/profile" "$ROOT/config/ashrc" "$ROOT/config/power-root"; do
+    "$ROOT/config/xinitrc" "$ROOT/config/profile" "$ROOT/config/ashrc" \
+    "$ROOT/config/lid-suspend-handler" "$ROOT/config/power-root"; do
     sh -n "$file"
 done
 printf '\nPASS: offline shell, config-preservation, repository-guard, monitor and screenshot tests.\n'

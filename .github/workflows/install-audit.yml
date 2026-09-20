@@ -62,9 +62,10 @@ jobs:
           doas -C /etc/doas.d/alpinews.conf
           test -x /usr/local/libexec/alpinews-power
           test "$(stat -c %u /usr/local/libexec/alpinews-power)" = 0
-          for package in .alpinews-build bash tmux systemd; do
+          for package in .alpinews-build tmux systemd; do
             if apk info -e "$package"; then echo "Unexpected retained package: $package" >&2; exit 1; fi
           done
+          apk info -e bash shadow
       - name: Verify Firefox installs the requested extensions
         if: ${{ !cancelled() && steps.installation.outcome == 'success' }}
         run: |

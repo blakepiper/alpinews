@@ -1,7 +1,10 @@
 # Blix editor on Alpine
 
-The Neovim configuration is still copied unchanged from the pinned Blix commit.
-Compatibility work is confined to system prerequisites and generated tool launchers.
+The Neovim configuration starts from the pinned Blix commit, with one tracked
+AlpineWS overlay at `config/nvim/lua/config/ide.lua` for the `nvimide` layout.
+The overlay opens two stacked Snacks terminal panes and resizes both with the
+editor. Compatibility work beyond that layout is confined to system prerequisites
+and generated tool launchers.
 
 The runtime manifest retains Zig, musl headers and Tree-sitter's CLI. Node.js is
 an Alpine dependency of that CLI. The `cc` and `c++` wrappers translate only the
@@ -23,12 +26,13 @@ isolated `nvim -u NONE` process, before Blix can start a competing automatic
 language-server installation. Mason creates the package and its real receipt.
 The temporary plugin source checkout is removed with the installer workspace.
 
-Mason's generated executable launcher requires Bash. AlpineWS saves that entry
-point as `lua-language-server.alpinews-original` and replaces the entry point
-with a short POSIX shell wrapper for the same actual musl binary. It does not
-install Bash, pretend ash is Bash, modify the language-server binary, forge a
-Mason receipt, or alter any Blix Lua file. Both the binary and the final wrapper
-must execute successfully before this stage succeeds.
+Mason's generated executable launcher requires Bash. Bash is an explicit AlpineWS
+runtime dependency and login shell. AlpineWS saves that entry point as
+`lua-language-server.alpinews-original` and replaces the entry point with a short
+POSIX shell wrapper for the same actual musl binary. It does not pretend ash is
+Bash, modify the language-server binary, forge a Mason receipt, or alter Blix's
+other Lua files. Both the binary and the final wrapper must execute successfully
+before this stage succeeds.
 
 Mason updates can replace that launcher, and a release without a musl archive
 will still fail to download. Rerun the full installer to repair a broken entry

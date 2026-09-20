@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# BusyBox acpid invokes this handler for the lid-close event
+# (LID/00000080) as root.
+sync
+sleep 1
+printf '%s\n' mem > /sys/power/state

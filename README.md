@@ -1,11 +1,13 @@
 # AlpineWS
 
-A minimal **Alpine Linux 3.24 x86_64 desktop for the ThinkPad T490**: BusyBox ash,
-musl, OpenRC, Xorg, OXWM, patched st, Firefox, and the complete pinned Blix Neovim
-configuration. The full installer also sets a **79% battery charge-stop limit**.
+A minimal **Alpine Linux 3.24 x86_64 desktop for the ThinkPad T490**: Bash with
+ble.sh, musl, OpenRC, Xorg, OXWM, patched st, Firefox, and the pinned Blix Neovim
+configuration with the AlpineWS nvimide layout. The full installer also sets a
+**79% battery charge-stop limit**.
 
-No systemd init, desktop environment, display manager, compositor, tmux, TLP,
-Bash or GNU command-line suite is added. This is not literally GNU-free: stock
+No systemd init, desktop environment, display manager, compositor, tmux, TLP or
+GNU command-line suite is added. Bash is the configured login shell. This is not
+literally GNU-free: stock
 applications need some GNU runtime libraries, and Alpine's normal UEFI disk
 installation uses GRUB. AlpineWS does not replace Alpine's bootloader.
 
@@ -249,10 +251,12 @@ system-configuration stages; source downloads and builds run as your user.
 Keep the network connected, keep the charger attached, and do not launch a second
 installer. Read any error rather than continuing to `startx` after a failed run.
 
-The full installer installs the package manifest, builds OXWM/st/the clipboard
-listener, copies pinned Blix preferences, configures Xorg/eudev/D-Bus, bootstraps
-the compatible Lua language server, and applies the battery limit. It never
-partitions disks, changes passwords or replaces your networking configuration.
+The full installer installs the package manifest, makes Bash the account's login
+shell, installs the pinned ble.sh nightly, builds OXWM/st/the clipboard listener,
+copies pinned Blix preferences plus the AlpineWS nvimide layout, configures
+Xorg/eudev/D-Bus, bootstraps the compatible Lua language server, and applies the
+battery limit. It never partitions disks, changes passwords or replaces your
+networking configuration.
 
 `--replace-config` backs up differing managed files before replacing them.
 Without it, existing configurations are preserved and reported. Xfe's mutable
@@ -276,7 +280,8 @@ startx
 ```
 
 There is no graphical login screen or autologin. You run `startx` after each
-console login. **Super+Enter** opens st; **Super+B** opens Firefox;
+console login. **Super+Enter** opens a Bash-backed st; the external keyboard's
+swapped layout also supports **Alt+Enter**. **Super+B** opens Firefox;
 **Super+F** opens Xfe. **Super+Shift+Q** exits OXWM back to the console.
 
 In st, check the installed commands and the actual firmware threshold:
@@ -331,22 +336,31 @@ content are configured; existing conflicting policies need `--replace-config`.
 
 Open `nvim` or `nvimide` and leave the first session open while its plugins and
 parsers finish installing. Do not start several initial Neovim sessions at once.
-`nvimide` opens Blix's explorer/terminal layout; no tmux session is involved.
+`nvimide` opens Blix's explorer with two stacked terminal panes; no tmux session
+is involved.
 
-The entire Neovim configuration is copied unchanged from Blix commit
-`4a4b8017d07421796047e12edceba87e21e3f24e`, including its lockfile and
-`BLIX_NVIMIDE=1` behavior. Blix itself names the color scheme `seafoam`; no
-separate Alpine theme or feature-disabling override is added.
+The Neovim configuration uses Blix commit
+`4a4b8017d07421796047e12edceba87e21e3f24e` as its complete base, including its
+lockfile, theme and `BLIX_NVIMIDE=1` integration. AlpineWS overlays
+`config/nvim/lua/config/ide.lua` to open and resize the two terminal panes.
+Blix itself names the color scheme `seafoam`; no separate Alpine theme or
+feature-disabling plugin override is added.
 
 Zig, musl headers and Tree-sitter's CLI remain installed for later parser
 compilation. Alpine's CLI package also brings Node.js. These use disk space,
 not idle services. The `cc`/`c++` wrappers normalize Alpine's target for Zig.
 Other temporary build packages are removed after a successful install.
 
+The login shell is `/bin/bash`. The installer installs the pinned ble.sh nightly
+under `~/.local/share/blesh`; `.bashrc` loads it for interactive sessions and
+attaches it before the first prompt. Existing ble.sh trees are preserved unless
+`--replace-config` is supplied.
+
 **LuaLS compatibility pin:** the installer seeds the older **3.13.9 musl build**
 when no working Mason Lua server exists, and adapts its generated Bash launcher
-to POSIX sh. It preserves a working server and does not change Blix Lua files or
-forge Mason receipts. Future Mason updates can replace the launcher or request
+to POSIX sh. It preserves a working server, leaves the rest of Blix's Lua files
+and Mason receipts alone, and does not forge Mason receipts. Future Mason updates
+can replace the launcher or request
 an unavailable musl build; rerun the full installer to repair the supported
 entry point. Read [the editor notes](docs/EDITOR-BOOTSTRAP.md) before updating.
 A preserved custom Neovim configuration is not bootstrapped automatically.
@@ -367,8 +381,9 @@ doas reboot
 ```
 
 Use the **full installer** for package, battery and system fixes.
-`--config-only` copies user files only; it does not install packages, apply the
-battery clamp or seed the language server. `--keep-build-deps` retains the
+`--config-only` copies user files only; it does not install packages, change the
+login shell, install ble.sh, apply the battery clamp or seed the language server.
+`--keep-build-deps` retains the
 temporary `.alpinews-build` group. `sh install.sh --help` lists all options.
 
 AlpineWS reads fixed Blix/OXWM revisions rather than silently following their
@@ -377,14 +392,15 @@ moving branches. Installed revisions and the package inventory are recorded in
 
 ## Desktop reference
 
-OXWM uses dwindle on nine tags, 8 px gaps, 2 px borders, JetBrainsMono Nerd Font
-and Blix's palette/status bar. st includes the Blix palette, 5,000-line scrollback,
+OXWM uses dwindle on nine tags, 8 px gaps, 2 px borders, JetBrainsMono Nerd Font,
+a Bash-backed terminal launcher and Blix's palette/status bar. st includes the
+Blix palette, 5,000-line scrollback,
 clickable URLs and copy/paste. Xfe handles files, mpv media and feh images.
 The exact runtime package list is [config/packages](config/packages).
 
 | Key | Action |
 | --- | --- |
-| Super+Enter | st |
+| Super+Enter / external Alt+Enter | Bash-backed st |
 | Super+Space or Super+D | dmenu |
 | Super+B / Super+F | Firefox / Xfe |
 | Super+1..9 / Super+Shift+1..9 | View tag / move window to tag |
@@ -432,10 +448,11 @@ After an unclean crash, check for surviving X/audio processes before removing
 its stale `alpinews-session` directory inside `$XDG_RUNTIME_DIR` or
 `/tmp/alpinews-runtime-$(id -u)`.
 
-**Locking:** the menu locks with i3lock before suspend. There is **no automatic
-lid lock, global suspend inhibitor, idle lock or display-blanking timer**. Existing
-ACPI handlers are untouched; inspect `/etc/acpi/handler.sh` before trusting lid
-behavior. Suspending elsewhere can bypass the lock. This profile uses Alpine's
+**Locking:** the menu locks with i3lock before a menu-initiated suspend. Closing
+the lid invokes a small BusyBox ACPI handler that suspends after syncing, but
+there is **no automatic lid lock, global suspend inhibitor, idle lock or
+display-blanking timer**. Suspending elsewhere can bypass the lock. This profile
+uses Alpine's
 console-only root Xorg wrapper without logind, disabling VT switching and the
 X-server kill shortcut during X. Exit OXWM to return to the console. Test this
 security-sensitive behavior on the laptop.

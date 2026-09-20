@@ -1,4 +1,7 @@
-# No desktop meta-package, compositor, Bash or GNU CLI suite.
+# No desktop meta-package, compositor or GNU CLI suite. Bash is the login shell;
+# shadow provides the user-shell management command used by the system stage.
+bash
+shadow
 xorg-server
 xf86-input-libinput
 xinit

@@ -9,8 +9,9 @@ trap 'rm -rf "$test_dir"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 
-# Only the installer and launcher under test are real. No network, root or
-# Neovim plugin execution is needed; all writes stay inside this temporary HOME.
+# Only the installer, tracked nvimide overlay and launcher under test are real.
+# No network, root or Neovim plugin execution is needed; all writes stay inside
+# this temporary HOME.
 ROOT="$test_dir/installer"
 WORK="$test_dir/work"
 HOME="$test_dir/home"
@@ -19,16 +20,19 @@ XDG_DATA_HOME="$test_dir/xdg data"
 export ROOT WORK HOME XDG_CONFIG_HOME XDG_DATA_HOME
 upstream="$WORK/blix/home/przvl/config"
 mkdir -p "$ROOT/config" "$ROOT/bin" "$HOME" \
+    "$ROOT/config/nvim/lua/config" \
     "$upstream/nvim/lua/config" "$upstream/nvim/lua/plugins" \
     "$upstream/oxwm"
-for file in xinitrc profile ashrc display.conf xferc gtk.ini; do
+for file in xinitrc profile bashrc bash_profile ashrc display.conf xferc gtk.ini; do
     printf '# fixture\n' > "$ROOT/config/$file"
 done
+cp "$SOURCE_ROOT/config/nvim/lua/config/ide.lua" "$ROOT/config/nvim/lua/config/ide.lua"
 # Kept in the fixture so this test catches the old override-injection code.
 printf 'return { { "mason-org/mason.nvim", enabled = false } }\n' > "$ROOT/config/nvim-alpine.lua"
 cp "$SOURCE_ROOT/bin/nvimide" "$ROOT/bin/nvimide"
 printf '%s\n' '[Default Applications]' > "$upstream/mimeapps.list"
-printf '%s\n' '-- OXWM fixture' > "$upstream/oxwm/config.lua"
+printf '%s\n' 'oxwm.set_terminal("st")' \
+    'oxwm.key.bind({ mod }, "Return", oxwm.spawn_terminal())' > "$upstream/oxwm/config.lua"
 cat > "$upstream/nvim/init.lua" <<'LUA'
 -- bootstrap lazy.nvim, LazyVim and your plugins
 require("config.lazy")
@@ -60,6 +64,7 @@ LUA
 printf '%s\n' '{"fixture": {"commit": "unchanged"}}' > "$upstream/nvim/lazy-lock.json"
 printf '%s\n' '{"fixture": true}' > "$upstream/nvim/.neoconf.json"
 cp -R "$upstream/nvim" "$test_dir/original"
+make_nvim_config "$test_dir/expected-nvim"
 
 REPLACE_CONFIG=0
 export REPLACE_CONFIG
@@ -80,8 +85,10 @@ if grep -q 'tmux' "$SOURCE_ROOT/tests/smoke.sh"; then
     die 'Post-install checks still require tmux.'
 fi
 installed="$XDG_CONFIG_HOME/nvim"
-diff -qr "$upstream/nvim" "$installed"
+diff -qr "$test_dir/expected-nvim" "$installed"
 [ ! -e "$installed/lua/plugins/alpinews.lua" ]
+grep -Fq 'oxwm.set_terminal("st-bash")' "$XDG_CONFIG_HOME/oxwm/config.lua"
+grep -Fq 'oxwm.key.bind({ "Mod1" }, "Return", oxwm.spawn_terminal())' "$XDG_CONFIG_HOME/oxwm/config.lua"
 # An unchanged rerun must not produce a backup or alter the source checkout.
 configure_user
 [ "$(cat "$XDG_DATA_HOME/nvim/site/parser/preserved.so")" = keep ]
@@ -97,7 +104,7 @@ configure_user
 [ "$(cat "$installed/lua/plugins/alpinews.lua")" = 'old Alpine override' ]
 REPLACE_CONFIG=1
 configure_user
-diff -qr "$upstream/nvim" "$installed"
+diff -qr "$test_dir/expected-nvim" "$installed"
 [ ! -e "$installed/lua/plugins/alpinews.lua" ]
 backup_count=0
 for backup in "$installed".backup.*; do
@@ -128,4 +135,4 @@ cmp "$test_dir/expected" "$NVIM_CALLS"
 printf '%s\n' 1 "$HOME" 1 'another file.lua' > "$test_dir/expected"
 cmp "$test_dir/expected" "$NVIM_CALLS"
 
-printf '\nPASS: unchanged Blix copy, parser runtime directories, backups, nvimide and no tmux provisioning.\n'
+printf '\nPASS: pinned Blix base, nvimide overlay, parser runtime directories, backups and no tmux provisioning.\n'
