@@ -8,6 +8,7 @@ on:
       - 'config/packages'
       - 'install.sh'
       - 'lib/configure.sh'
+      - 'tests/editor-integration.lua'
   workflow_dispatch:
 
 permissions:
@@ -45,7 +46,18 @@ jobs:
           if grep -E 'Error detected while processing|Failed to run.*config|No C compiler found|Failed to build|Failed to load' /home/tester/editor-bootstrap.log; then
             exit 1
           fi
+      - name: Install and execute the actual Mason tools
+        run: |
+          su tester -c 'timeout 180 nvim --headless "+MasonInstall lua-language-server stylua shfmt" "+qa!"' > /home/tester/editor-tools.log 2>&1
+          su tester -c '
+            set -eu
+            "$HOME/.local/share/nvim/mason/bin/lua-language-server" --version
+            "$HOME/.local/share/nvim/mason/bin/stylua" --version
+            "$HOME/.local/share/nvim/mason/bin/shfmt" --version
+          '
       - name: Print editor diagnostics
         if: always()
         run: |
-          test ! -f /home/tester/editor-bootstrap.log || cat /home/tester/editor-bootstrap.log
+          for f in /home/tester/editor-bootstrap.log /home/tester/editor-tools.log /home/tester/.local/state/nvim/mason.log; do
+            if [ -f "$f" ]; then printf '\n--- %s ---\n' "$f"; tail -n 100 "$f"; fi
+          done
