@@ -4,6 +4,10 @@ configure_user() (
     cfg=${XDG_CONFIG_HOME:-$HOME/.config}
     seed="$WORK/user-seed"
     mkdir -p "$seed" "$cfg" "$HOME/.local/bin" "$HOME/Pictures/Screenshots"
+    # Create the parser runtime root before the first editor launch, so it is
+    # present when Neovim/Lazy initialize their runtime search paths. No Lua
+    # override or parser state replacement is needed.
+    mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/site/parser"
     # Copy Blix's complete Neovim configuration unchanged. Keep its plugin
     # choices, lockfile, theme and BLIX_NVIMIDE integration; do not inject overrides.
     put_tree "$WORK/blix/home/przvl/config/nvim" "$cfg/nvim"
