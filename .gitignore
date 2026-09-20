@@ -1,0 +1,4 @@
+*.backup.*
+*.new.*
+.zig-cache/
+zig-out/
