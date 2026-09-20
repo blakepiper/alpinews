@@ -61,6 +61,23 @@ configure)
     # Privileged code is always replaced, never trusted as a preserved user edit.
     (REPLACE_CONFIG=1; put_file "$ROOT/config/power-root" /usr/local/libexec/alpinews-power 755)
     chown root:root /usr/local/libexec/alpinews-power
+    # One-shot charge control, plus short event/resume reapplication. No daemon.
+    (
+        REPLACE_CONFIG=1
+        put_file "$ROOT/config/battery-limit" /usr/local/libexec/alpinews-battery-limit 755
+        put_file "$ROOT/config/battery-limit.initd" /etc/init.d/alpinews-battery-limit 755
+        put_file "$ROOT/config/battery-limit.rules" /etc/udev/rules.d/95-alpinews-battery.rules
+    )
+    chown root:root /usr/local/libexec/alpinews-battery-limit \
+        /etc/init.d/alpinews-battery-limit /etc/udev/rules.d/95-alpinews-battery.rules
+    rc-update add alpinews-battery-limit boot
+    battery_rc=0
+    /usr/local/libexec/alpinews-battery-limit || battery_rc=$?
+    case "$battery_rc" in
+        0) ;;
+        2) printf '%s\n' 'WARNING: Battery cap is NOT applied; check thinkpad_acpi and battery threshold support after reboot.' >&2 ;;
+        *) die 'Battery threshold write/read-back failed. Correct the reported error and rerun.' ;;
+    esac
     tmp=$(mktemp)
     trap 'rm -f "$tmp"' EXIT
     for action in suspend reboot poweroff; do
@@ -69,7 +86,7 @@ configure)
     doas -C "$tmp"
     put_file "$tmp" /etc/doas.d/alpinews.conf 600
     udevadm control --reload-rules
-    # Apply rules at next boot/hotplug, without interrupting current input.
+    # Apply input rules at next boot/hotplug, without interrupting current input.
     ;;
 *) die 'Unknown internal stage.' ;;
 esac

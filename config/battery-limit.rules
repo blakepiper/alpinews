@@ -1,0 +1,3 @@
+# Reapply after battery/AC events, including the events normally sent on resume.
+# The helper skips unchanged values so its own writes cannot form an event loop.
+SUBSYSTEM=="power_supply", ACTION=="add|change", RUN+="/usr/local/libexec/alpinews-battery-limit --event"

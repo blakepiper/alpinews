@@ -7,7 +7,12 @@ case "$1" in
     suspend)
         [ -w /sys/power/state ] && grep -qw mem /sys/power/state || exit 1
         sync
-        printf 'mem\n' > /sys/power/state ;;
+        printf 'mem\n' > /sys/power/state
+        # The sysfs write returns after resume. Do not turn a successful resume
+        # into a failed suspend action if firmware charge control is unavailable.
+        /usr/local/libexec/alpinews-battery-limit || \
+            logger -t alpinews 'Battery cap could not be reapplied after resume; check thresholds.'
+        ;;
     reboot) exec /sbin/reboot ;;
     poweroff) exec /sbin/poweroff ;;
     *) exit 1 ;;

@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+description="Apply the ThinkPad 79% charge limit without a resident process"
+
+depend() {
+    need localmount
+    after modules udev-settle
+}
+
+start() {
+    ebegin "Applying the 79% battery charge limit"
+    /usr/local/libexec/alpinews-battery-limit
+    eend $?
+}
+
+stop() {
+    # Keep firmware thresholds across shutdown; stopping is not a charge reset.
+    return 0
+}

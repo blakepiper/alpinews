@@ -1,0 +1,24 @@
+name: Battery charge limit
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  battery:
+    runs-on: ubuntu-latest
+    container: alpine:3.24
+    timeout-minutes: 3
+    defaults:
+      run:
+        shell: sh -eu {0}
+    steps:
+      - name: Test the production helper with fake battery attributes
+        run: |
+          apk add --no-cache git
+          git init -q /tmp/alpinews
+          git -C /tmp/alpinews fetch --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git -C /tmp/alpinews checkout -q --detach FETCH_HEAD
+          adduser -D tester
+          su tester -c 'sh /tmp/alpinews/tests/battery.sh'

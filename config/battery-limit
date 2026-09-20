@@ -1,0 +1,76 @@
+#!/bin/sh
+# ThinkPad firmware charge control. No polling, daemon, or forced discharge.
+set -eu
+
+battery_error() { printf 'Battery limit: %s\n' "$*" >&2; }
+read_threshold() { cat "$1"; }
+write_threshold() {
+    [ "$(read_threshold "$1")" != "$2" ] || return 0
+    [ -w "$1" ] || { battery_error "Not writable: $1"; return 1; }
+    printf '%s\n' "$2" > "$1" || return 1
+    [ "$(read_threshold "$1")" = "$2" ] || {
+        battery_error "Firmware did not retain $2 in $1"; return 1;
+    }
+}
+
+# The directory argument is used only by offline tests. main uses fixed sysfs.
+apply_battery_limit() (
+    supply=$1 mode=$2 found=0
+    for battery in "$supply"/BAT*; do
+        [ -d "$battery" ] || continue
+        if [ -r "$battery/present" ] && [ "$(cat "$battery/present")" = 0 ]; then
+            continue
+        fi
+        end="$battery/charge_control_end_threshold"
+        start="$battery/charge_control_start_threshold"
+        [ -e "$end" ] || continue
+        found=1
+        old_end=$(read_threshold "$end") || return 1
+        case "$old_end" in ''|*[!0-9]*) battery_error "Invalid threshold in $end"; return 1 ;; esac
+        [ "$old_end" -ge 1 ] && [ "$old_end" -le 100 ] || return 1
+        if [ "$mode" = check ]; then
+            printf '%s: charge stop %s%% (requested 79%%)\n' "${battery##*/}" "$old_end"
+            [ "$old_end" = 79 ] || return 1
+            continue
+        fi
+        # Lower an incompatible start threshold BEFORE lowering the stop value.
+        # Preserve an existing start below 79, including 0 (disabled).
+        if [ -e "$start" ]; then
+            old_start=$(read_threshold "$start") || return 1
+            case "$old_start" in ''|*[!0-9]*) battery_error "Invalid threshold in $start"; return 1 ;; esac
+            [ "$old_start" -le 99 ] || return 1
+            if [ "$old_start" -ge 79 ]; then
+                write_threshold "$start" 78 || return 1
+            fi
+        fi
+        write_threshold "$end" 79 || return 1
+        if [ "$mode" != event ]; then
+            printf '%s: charge stop verified at 79%%\n' "${battery##*/}"
+        fi
+    done
+    if [ "$found" = 0 ]; then
+        [ "$mode" = event ] || battery_error 'No supported battery threshold found; 79% cap NOT applied.'
+        return 2
+    fi
+)
+
+main() {
+    PATH=/usr/sbin:/usr/bin:/sbin:/bin
+    export PATH
+    [ "$#" -le 1 ] || return 1
+    case "${1:-}" in
+        '') mode=apply ;;
+        --event) mode=event ;;
+        --check) mode=check ;;
+        *) battery_error 'Usage: alpinews-battery-limit [--check|--event]'; return 1 ;;
+    esac
+    if [ "$mode" != check ]; then
+        [ "$(id -u)" = 0 ] || { battery_error 'Root is required to set thresholds.'; return 1; }
+        # Boot/install only. Never load a module from a udev event handler.
+        if [ "$mode" = apply ]; then
+            modprobe thinkpad_acpi 2>/dev/null || :
+        fi
+    fi
+    apply_battery_limit /sys/class/power_supply "$mode"
+}
+main "$@"
