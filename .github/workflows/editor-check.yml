@@ -28,15 +28,30 @@ jobs:
           apk add --no-cache "$@"
           chown -R tester:tester /home/tester
           su tester -c 'cd ~/alpinews; sh install.sh --config-only --replace-config'
-      - name: Verify the retained compiler works
+      - name: Verify the retained compiler and target normalization
         run: |
           su tester -c '
             set -eu
             export PATH="$HOME/.local/bin:$PATH"
+            sh "$HOME/alpinews/tests/compiler.sh"
             printf "int main(void) { return 0; }\n" > "$HOME/compiler-test.c"
-            cc "$HOME/compiler-test.c" -o "$HOME/compiler-test"
+            cc --target=x86_64-alpine-linux-musl "$HOME/compiler-test.c" -o "$HOME/compiler-test"
             "$HOME/compiler-test"
             tree-sitter --version
+          '
+      - name: Run the actual installer language-server bootstrap twice
+        run: |
+          su tester -c '
+            set -eu
+            ROOT=$HOME/alpinews
+            STATE=$HOME/.local/state/alpinews
+            WORK=$(mktemp -d)
+            trap '\''rm -rf "$WORK"'\'' EXIT
+            export ROOT STATE WORK
+            . "$ROOT/lib/common.sh"
+            . "$ROOT/lib/editor.sh"
+            prepare_editor
+            prepare_editor
           '
       - name: Bootstrap the unmodified Blix plugins
         id: bootstrap
@@ -45,10 +60,9 @@ jobs:
           if grep -E 'Error (detected|in)|E[0-9]{3,}:|Failed to run.*config|No C compiler found|Failed to build|Failed to load' /home/tester/editor-bootstrap.log; then
             exit 1
           fi
-      - name: Install and execute the published musl Mason tools
+      - name: Install and execute the actual Mason tools
         run: |
-          # LuaLS 3.19.1 has no upstream musl archive; validate an actual published one.
-          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 180 nvim --headless "+lua require(\"lazy\").load({plugins={\"mason.nvim\"}})" "+MasonInstall lua-language-server@3.13.9 stylua shfmt" "+qa!"' > /home/tester/editor-tools.log 2>&1
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 180 nvim --headless "+lua require(\"lazy\").load({plugins={\"mason.nvim\"}})" "+MasonInstall stylua shfmt" "+qa!"' > /home/tester/editor-tools.log 2>&1
           su tester -c '
             set -eu
             "$HOME/.local/share/nvim/mason/bin/lua-language-server" --version
@@ -62,6 +76,6 @@ jobs:
       - name: Print editor diagnostics
         if: always()
         run: |
-          for f in /home/tester/editor-bootstrap.log /home/tester/editor-tools.log /home/tester/editor-parsers.log /home/tester/.local/state/nvim/mason.log; do
+          for f in /home/tester/editor-bootstrap.log /home/tester/editor-tools.log /home/tester/editor-parsers.log /home/tester/.local/state/alpinews/editor-tools.log /home/tester/.local/state/nvim/mason.log; do
             if [ -f "$f" ]; then printf '\n--- %s ---\n' "$f"; tail -n 100 "$f"; fi
           done

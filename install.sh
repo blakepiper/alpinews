@@ -66,6 +66,12 @@ fi
 . "$ROOT/lib/configure.sh"
 configure_user
 if [ "$CONFIG_ONLY" = 0 ]; then
+    if diff -qr "$WORK/blix/home/przvl/config/nvim" "${XDG_CONFIG_HOME:-$HOME/.config}/nvim" >/dev/null 2>&1; then
+        . "$ROOT/lib/editor.sh"
+        prepare_editor
+    else
+        log 'Preserved custom Neovim configuration; leaving its language-tool installation alone'
+    fi
     doas sh "$ROOT/lib/system.sh" configure "$(id -un)" "$REPLACE_CONFIG"
     "$HOME/.local/bin/oxwm" --validate "${XDG_CONFIG_HOME:-$HOME/.config}/oxwm/config.lua"
     if [ "$KEEP_BUILD" = 0 ]; then

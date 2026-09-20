@@ -1,3 +1,16 @@
 #!/bin/sh
-# Provide the conventional compiler name expected by Tree-sitter, using Zig.
+# Rust/Tree-sitter uses Alpine's four-part target; Zig expects a three-part one.
+# Rebuild the arguments without losing whitespace or empty arguments.
+remaining=$#
+while [ "$remaining" -gt 0 ]; do
+    arg=$1
+    shift
+    case "$arg" in
+        x86_64-alpine-linux-musl) arg=x86_64-linux-musl ;;
+        --target=x86_64-alpine-linux-musl) arg=--target=x86_64-linux-musl ;;
+        -target=x86_64-alpine-linux-musl) arg=-target=x86_64-linux-musl ;;
+    esac
+    set -- "$@" "$arg"
+    remaining=$((remaining - 1))
+done
 exec zig cc "$@"
