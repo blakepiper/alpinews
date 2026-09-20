@@ -1,0 +1,98 @@
+name: Alpine installation checks
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  alpine:
+    runs-on: ubuntu-latest
+    container: alpine:3.24
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: sh -eu {0}
+    steps:
+      - name: Fetch the exact public source revision
+        run: |
+          printf '%s\n' \
+            https://dl-cdn.alpinelinux.org/alpine/v3.24/main \
+            https://dl-cdn.alpinelinux.org/alpine/v3.24/community > /etc/apk/repositories
+          apk add --no-cache ca-certificates git curl openrc doas jq
+          adduser -D tester
+          git init -q /home/tester/alpinews
+          git -C /home/tester/alpinews fetch --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git -C /home/tester/alpinews checkout -q --detach FETCH_HEAD
+          test "$(git -C /home/tester/alpinews rev-parse HEAD)" = "$GITHUB_SHA"
+          chown -R tester:tester /home/tester/alpinews
+      - name: Run offline regression tests
+        run: |
+          su tester -c 'cd ~/alpinews; sh tests/test.sh; sh tests/nvim-config.sh'
+          jq -e '.policies.ExtensionSettings | length == 3' /home/tester/alpinews/config/policies.json
+      - name: Resolve and install the real package manifests
+        run: |
+          sh /home/tester/alpinews/lib/system.sh packages tester 0
+          apk add --no-cache xvfb
+      - name: Build and validate as an unprivileged Alpine user
+        run: |
+          su tester -c '
+            set -eu
+            cd ~/alpinews
+            ROOT=$PWD
+            STATE=$HOME/.local/state/alpinews
+            WORK=$HOME/alpinews-test-work
+            REPLACE_CONFIG=1
+            mkdir -p "$STATE" "$WORK"
+            export ROOT STATE WORK REPLACE_CONFIG
+            . "$ROOT/lib/common.sh"
+            BLIX_REV=$(sed -n "s/^BLIX_REV=//p" install.sh)
+            OXWM_REV=$(sed -n "s/^OXWM_REV=//p" install.sh)
+            test -n "$BLIX_REV" && test -n "$OXWM_REV"
+            export BLIX_REV OXWM_REV
+            fetch_repo https://github.com/blakepiper/blix.git "$BLIX_REV" "$WORK/blix"
+            . "$ROOT/lib/build.sh"
+            build_desktop
+            . "$ROOT/lib/configure.sh"
+            configure_user
+            export PATH="$HOME/.local/bin:$PATH"
+            oxwm --validate "$HOME/.config/oxwm/config.lua"
+            diff -qr "$WORK/blix/home/przvl/config/nvim" "$HOME/.config/nvim"
+            nvim --headless -u NONE +qa
+            ldd "$HOME/.local/bin/oxwm"
+            ldd "$HOME/.local/bin/st"
+            ldd "$HOME/.local/bin/alpinews-clipwatch"
+          '
+      - name: Verify binaries still run without build dependencies
+        run: |
+          apk del .alpinews-build
+          su tester -c '
+            set -eu
+            export PATH="$HOME/.local/bin:$PATH"
+            oxwm --validate "$HOME/.config/oxwm/config.lua"
+            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp > "$HOME/xvfb.log" 2>&1 & xpid=$!
+            trap "kill $xpid 2>/dev/null || :" EXIT
+            export DISPLAY=:99
+            attempt=0
+            until xset q >/dev/null 2>&1; do
+              kill -0 "$xpid"
+              attempt=$((attempt + 1))
+              test "$attempt" -lt 50
+              sleep 0.1
+            done
+            oxwm > "$HOME/oxwm.log" 2>&1 & wpid=$!
+            trap "kill $wpid $xpid 2>/dev/null || :" EXIT
+            sleep 1
+            kill -0 "$wpid"
+            st -e /bin/sh -c "printf terminal-ok > \"\$HOME/st-result\""
+            test "$(cat "$HOME/st-result")" = terminal-ok
+          '
+      - name: Print diagnostics
+        if: always()
+        run: |
+          for f in /home/tester/xvfb.log /home/tester/oxwm.log; do
+            if [ -f "$f" ]; then printf '\n--- %s ---\n' "$f"; cat "$f"; fi
+          done
