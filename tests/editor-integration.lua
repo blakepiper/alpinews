@@ -1,15 +1,34 @@
 -- Disposable CI HOME only. Load the real plugins; do not override their options.
 local ok, err = pcall(function()
   require("lazy").load({ plugins = { "nvim-treesitter" } })
-  local ts = require("nvim-treesitter")
-  -- Blix starts its own asynchronous parser installs. Wait for representative
-  -- grammars rather than launching competing installations of the same files.
+  local config = require("nvim-treesitter.config")
+  local parsers = require("nvim-treesitter.parsers")
+  local parser_dir = config.get_install_dir("parser")
+  local info_dir = config.get_install_dir("parser-info")
+  -- get_installed() only lists directory entries. An asynchronous fs_copyfile
+  -- exposes a .so pathname before its contents are complete; loading that file
+  -- can SIGBUS. The pinned installer writes .revision AFTER the copy finishes.
+  -- Wait for that completion marker, not merely the shared-library pathname.
   assert(vim.wait(180000, function()
-    local installed = ts.get_installed()
-    return vim.tbl_contains(installed, "bash") and vim.tbl_contains(installed, "json")
-  end, 100), "Blix did not install the bash and json parsers")
+    for _, lang in ipairs({ "bash", "json" }) do
+      local marker = info_dir .. "/" .. lang .. ".revision"
+      if vim.fn.filereadable(marker) ~= 1 then
+        return false
+      end
+      local revision = vim.fn.readfile(marker)[1]
+      if revision ~= parsers[lang].install_info.revision then
+        return false
+      end
+      local stat = vim.uv.fs_stat(parser_dir .. "/" .. lang .. ".so")
+      if not stat or stat.size == 0 then
+        return false
+      end
+    end
+    return true
+  end, 100), "Blix did not finish installing the bash and json parsers")
   for lang, text in pairs({ bash = "echo alpinews\n", json = '{"alpinews":true}' }) do
-    vim.treesitter.language.add(lang)
+    -- Test exactly the locally compiled library, never a bundled fallback.
+    vim.treesitter.language.add(lang, { path = parser_dir .. "/" .. lang .. ".so" })
     local parser = vim.treesitter.get_string_parser(text, lang)
     local trees = parser:parse()
     assert(trees[1] and not trees[1]:root():has_error(), "Parser failed: " .. lang)
