@@ -27,6 +27,7 @@ jobs:
           git init -q /home/tester/alpinews
           git -C /home/tester/alpinews fetch --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
           git -C /home/tester/alpinews checkout -q --detach FETCH_HEAD
+          test "$(git -C /home/tester/alpinews rev-parse HEAD)" = "$GITHUB_SHA"
           chown -R tester:tester /home/tester/alpinews
           mkdir -p /run/openrc
           touch /run/openrc/softlevel
@@ -49,6 +50,7 @@ jobs:
           SH
           chmod 755 "$udev"
       - name: Run the complete non-root installer
+        id: installation
         run: |
           su tester -c 'set -e; cd ~/alpinews; sh install.sh --replace-config' > /home/tester/install.log 2>&1
       - name: Check installed files and commands after build cleanup
@@ -60,48 +62,27 @@ jobs:
           doas -C /etc/doas.d/alpinews.conf
           test -x /usr/local/libexec/alpinews-power
           test "$(stat -c %u /usr/local/libexec/alpinews-power)" = 0
-          ! apk info -e .alpinews-build
-          ! apk info -e bash
-          ! apk info -e tmux
-          ! apk info -e systemd
-      - name: Bootstrap plugins and wait for parser builds in the same process
+          for package in .alpinews-build bash tmux systemd; do
+            if apk info -e "$package"; then echo "Unexpected retained package: $package" >&2; exit 1; fi
+          done
+      - name: Verify Firefox installs the requested extensions
+        if: ${{ !cancelled() && steps.installation.outcome == 'success' }}
         run: |
-          cat > /home/tester/wait-parsers.lua <<'LUA'
-          local ok, err = pcall(function()
-            require('lazy').load({ plugins = { 'nvim-treesitter' } })
-            local ts = require('nvim-treesitter')
-            local options = require('lazy.core.plugin').values(require('lazy.core.config').plugins['nvim-treesitter'], 'opts', false)
-            local wanted = options.ensure_installed
-            assert(type(wanted) == 'table' and #wanted > 0, 'No configured parser list')
-            assert(vim.wait(420000, function()
-              local installed = ts.get_installed()
-              for _, name in ipairs(wanted) do
-                if not vim.tbl_contains(installed, name) then return false end
-              end
-              return true
-            end, 100), 'Some configured parsers did not finish')
-            for _, name in ipairs(wanted) do
-              assert(vim.treesitter.language.add(name), 'Unable to load parser ' .. name)
-            end
-            for name, text in pairs({ bash = 'echo alpinews\n', json = '{"alpinews":true}' }) do
-              local parser = vim.treesitter.get_string_parser(text, name)
-              local trees = parser:parse()
-              assert(trees[1] and not trees[1]:root():has_error(), 'Invalid parse: ' .. name)
-            end
-            print('PASS: all ' .. #wanted .. ' configured parsers installed and loaded; bash/json parsed')
-          end)
-          if not ok then io.stderr:write(tostring(err), '\n'); vim.cmd.cquit(1) end
-          vim.cmd('qa!')
-          LUA
-          chown tester:tester /home/tester/wait-parsers.lua
-          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 480 nvim --headless "+Lazy! restore" "+lua dofile(vim.env.HOME .. \"/wait-parsers.lua\")"' > /home/tester/editor-audit.log 2>&1
+          apk add --no-cache jq
+          su tester -c 'ALPINEWS_DISPOSABLE_TEST=1 timeout 210 sh ~/alpinews/tests/browser-integration.sh'
+      - name: Bootstrap plugins without interrupting parser compilation
+        if: ${{ !cancelled() && steps.installation.outcome == 'success' }}
+        id: editor
+        run: |
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 480 nvim --headless "+Lazy! restore" "+lua dofile(vim.env.HOME .. \"/alpinews/tests/editor-integration.lua\")"' > /home/tester/editor-audit.log 2>&1
       - name: Confirm a second editor start and native language tools
+        if: ${{ !cancelled() && steps.editor.outcome == 'success' }}
         run: |
-          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 240 nvim --headless "+lua dofile(vim.env.HOME .. \"/alpinews/tests/editor-integration.lua\")"'
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 90 nvim --headless "+lua dofile(vim.env.HOME .. \"/alpinews/tests/editor-integration.lua\")"'
           su tester -c 'set -e; "$HOME/.local/share/nvim/mason/bin/lua-language-server" --version; "$HOME/.local/share/nvim/mason/bin/stylua" --version; "$HOME/.local/share/nvim/mason/bin/shfmt" --version'
       - name: Print audit diagnostics
         if: always()
         run: |
           for file in /home/tester/install.log /home/tester/editor-audit.log /home/tester/.local/state/alpinews/editor-tools.log; do
-            if [ -f "$file" ]; then printf '\n--- %s ---\n' "$file"; tail -n 160 "$file"; fi
+            if [ -f "$file" ]; then printf '\n--- %s ---\n' "$file"; tail -n 100 "$file"; fi
           done
