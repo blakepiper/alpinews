@@ -1,0 +1,3 @@
+#!/bin/sh
+# Provide the conventional compiler name expected by Tree-sitter, using Zig.
+exec zig cc "$@"

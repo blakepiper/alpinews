@@ -8,6 +8,8 @@ on:
       - 'config/packages'
       - 'install.sh'
       - 'lib/configure.sh'
+      - 'bin/cc'
+      - 'bin/c++'
       - 'tests/editor-integration.lua'
   workflow_dispatch:
 
@@ -23,7 +25,7 @@ jobs:
       run:
         shell: sh -eu {0}
     steps:
-      - name: Install the runtime-only environment and pinned editor configuration
+      - name: Install the runtime manifest and run the real config-only installer
         run: |
           apk add --no-cache git curl ca-certificates
           adduser -D tester
@@ -32,23 +34,27 @@ jobs:
           git -C /home/tester/alpinews checkout -q --detach FETCH_HEAD
           set -- $(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' /home/tester/alpinews/config/packages)
           apk add --no-cache "$@"
-          rev=$(sed -n 's/^BLIX_REV=//p' /home/tester/alpinews/install.sh)
-          test -n "$rev"
-          git init -q /home/tester/blix
-          git -C /home/tester/blix fetch --depth=1 https://github.com/blakepiper/blix.git "$rev"
-          git -C /home/tester/blix checkout -q --detach FETCH_HEAD
-          mkdir -p /home/tester/.config
-          cp -R /home/tester/blix/home/przvl/config/nvim /home/tester/.config/nvim
           chown -R tester:tester /home/tester
+          su tester -c 'cd ~/alpinews; sh install.sh --config-only --replace-config'
+      - name: Verify the retained compiler works
+        run: |
+          su tester -c '
+            set -eu
+            export PATH="$HOME/.local/bin:$PATH"
+            printf "int main(void) { return 0; }\n" > "$HOME/compiler-test.c"
+            cc "$HOME/compiler-test.c" -o "$HOME/compiler-test"
+            "$HOME/compiler-test"
+            tree-sitter --version
+          '
       - name: Bootstrap the unmodified Blix plugins
         run: |
-          su tester -c 'timeout 240 nvim --headless "+Lazy! restore" "+lua if vim.v.errmsg ~= string.char() then error(vim.v.errmsg) end" "+qa!"' > /home/tester/editor-bootstrap.log 2>&1
-          if grep -E 'Error detected while processing|Failed to run.*config|No C compiler found|Failed to build|Failed to load' /home/tester/editor-bootstrap.log; then
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 240 nvim --headless "+Lazy! restore" "+lua if vim.v.errmsg ~= string.char() then io.stderr:write(vim.v.errmsg); vim.cmd.cquit(1) end" "+qa!"' > /home/tester/editor-bootstrap.log 2>&1
+          if grep -E 'Error (detected|in)|E[0-9]{3,}:|Failed to run.*config|No C compiler found|Failed to build|Failed to load' /home/tester/editor-bootstrap.log; then
             exit 1
           fi
       - name: Install and execute the actual Mason tools
         run: |
-          su tester -c 'timeout 180 nvim --headless "+MasonInstall lua-language-server stylua shfmt" "+qa!"' > /home/tester/editor-tools.log 2>&1
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 180 nvim --headless "+lua require(\"lazy\").load({plugins={\"mason.nvim\"}})" "+MasonInstall lua-language-server stylua shfmt" "+qa!"' > /home/tester/editor-tools.log 2>&1
           su tester -c '
             set -eu
             "$HOME/.local/share/nvim/mason/bin/lua-language-server" --version

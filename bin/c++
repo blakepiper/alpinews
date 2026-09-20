@@ -1,0 +1,3 @@
+#!/bin/sh
+# Some Tree-sitter grammars contain C++ scanners. No GCC installation required.
+exec zig c++ "$@"
