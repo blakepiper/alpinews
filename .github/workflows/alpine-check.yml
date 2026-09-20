@@ -31,7 +31,7 @@ jobs:
           chown -R tester:tester /home/tester/alpinews
       - name: Run offline regression tests
         run: |
-          su tester -c 'cd ~/alpinews; sh tests/test.sh; sh tests/nvim-config.sh'
+          su tester -c 'set -e; cd ~/alpinews; sh tests/test.sh; sh tests/nvim-config.sh'
           jq -e '.policies.ExtensionSettings | length == 3' /home/tester/alpinews/config/policies.json
       - name: Resolve and install the real package manifests
         run: |
@@ -66,33 +66,20 @@ jobs:
             ldd "$HOME/.local/bin/st"
             ldd "$HOME/.local/bin/alpinews-clipwatch"
           '
-      - name: Verify binaries still run without build dependencies
+      - name: Verify the installed X session after removing build dependencies
         run: |
           apk del .alpinews-build
+          mkdir -p /run/dbus
+          dbus-daemon --system --fork
           su tester -c '
             set -eu
             export PATH="$HOME/.local/bin:$PATH"
             oxwm --validate "$HOME/.config/oxwm/config.lua"
-            Xvfb :99 -screen 0 1280x720x24 -nolisten tcp > "$HOME/xvfb.log" 2>&1 & xpid=$!
-            trap "kill $xpid 2>/dev/null || :" EXIT
-            export DISPLAY=:99
-            attempt=0
-            until xset q >/dev/null 2>&1; do
-              kill -0 "$xpid"
-              attempt=$((attempt + 1))
-              test "$attempt" -lt 50
-              sleep 0.1
-            done
-            oxwm > "$HOME/oxwm.log" 2>&1 & wpid=$!
-            trap "kill $wpid $xpid 2>/dev/null || :" EXIT
-            sleep 1
-            kill -0 "$wpid"
-            st -e /bin/sh -c "printf terminal-ok > \"\$HOME/st-result\""
-            test "$(cat "$HOME/st-result")" = terminal-ok
+            ALPINEWS_DISPOSABLE_TEST=1 timeout 120 sh "$HOME/alpinews/tests/session-integration.sh"
           '
       - name: Print diagnostics
         if: always()
         run: |
-          for f in /home/tester/xvfb.log /home/tester/oxwm.log; do
+          for f in /home/tester/xvfb.log /home/tester/session.log /home/tester/wpctl.log /home/tester/pactl.log /home/tester/.local/state/alpinews/*.log; do
             if [ -f "$f" ]; then printf '\n--- %s ---\n' "$f"; cat "$f"; fi
           done

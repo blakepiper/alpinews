@@ -1,18 +1,20 @@
 #!/bin/sh
 # Manual console X session. No display manager, compositor or logind.
 set -u
-export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH="$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export LANG="${LANG:-C.UTF-8}"
 export EDITOR=nvim VISUAL=nvim
 export ENV="${XDG_CONFIG_HOME:-$HOME/.config}/ash/rc"
 export XDG_CURRENT_DESKTOP=OXWM XDG_SESSION_TYPE=x11
 export GTK_THEME=Adwaita:dark
 export MOZ_ENABLE_WAYLAND=0
-if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
-    exec dbus-run-session -- "$0"
-fi
 uid=$(id -u)
 XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp/alpinews-runtime-$uid}
 export XDG_RUNTIME_DIR
+case "$XDG_RUNTIME_DIR" in
+    /*) ;;
+    *) echo 'XDG_RUNTIME_DIR must be an absolute path.' >&2; exit 1 ;;
+esac
 if [ ! -e "$XDG_RUNTIME_DIR" ]; then
     (umask 077; mkdir "$XDG_RUNTIME_DIR") || exit 1
 fi
@@ -21,6 +23,10 @@ fi
     echo 'Unsafe XDG_RUNTIME_DIR; refusing to start.' >&2; exit 1;
 }
 chmod 700 "$XDG_RUNTIME_DIR"
+# D-Bus and all session children must inherit the same validated runtime path.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    exec dbus-run-session -- "$0"
+fi
 session_lock="$XDG_RUNTIME_DIR/alpinews-session"
 mkdir "$session_lock" 2>/dev/null || {
     echo "An AlpineWS session is already running, or its lock is stale: $session_lock" >&2
