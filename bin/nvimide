@@ -1,5 +1,5 @@
 #!/bin/sh
 set -eu
 if [ "$#" -gt 0 ] && [ -d "$1" ]; then cd "$1"; shift; fi
-export ALPINEWS_NVIMIDE=1
+export BLIX_NVIMIDE=1
 exec nvim "$@"

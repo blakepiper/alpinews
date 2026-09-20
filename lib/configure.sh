@@ -4,18 +4,9 @@ configure_user() (
     cfg=${XDG_CONFIG_HOME:-$HOME/.config}
     seed="$WORK/user-seed"
     mkdir -p "$seed" "$cfg" "$HOME/.local/bin" "$HOME/Pictures/Screenshots"
-    cp -R "$WORK/blix/home/przvl/config/nvim" "$seed/nvim"
-    # Retain the complete Seafoam/LazyVim setup and nvimide layout, but prevent
-    # unsolicited toolchain downloads, glibc-only Mason tools and update polls.
-    for file in "$seed/nvim/init.lua" "$seed/nvim/lua/config/ide.lua"; do
-        sed 's/BLIX_NVIMIDE/ALPINEWS_NVIMIDE/g; s/blix_nvimide/alpinews_nvimide/g' "$file" > "$file.new"
-        mv "$file.new" "$file"
-    done
-    sed 's/enabled = true, -- check for plugin updates periodically/enabled = false, -- updates are explicit on AlpineWS/' \
-        "$seed/nvim/lua/config/lazy.lua" > "$seed/nvim/lua/config/lazy.lua.new"
-    mv "$seed/nvim/lua/config/lazy.lua.new" "$seed/nvim/lua/config/lazy.lua"
-    cp "$ROOT/config/nvim-alpine.lua" "$seed/nvim/lua/plugins/alpinews.lua"
-    put_tree "$seed/nvim" "$cfg/nvim"
+    # Copy Blix's complete Neovim configuration unchanged. Keep its plugin
+    # choices, lockfile, theme and BLIX_NVIMIDE integration; do not inject overrides.
+    put_tree "$WORK/blix/home/przvl/config/nvim" "$cfg/nvim"
     sed 's/BLIX_BATTERY/ALPINEWS_BATTERY/g; s/blix-lock/alpinews-lock/g; s/blix-brightness/alpinews-brightness/g' \
         "$WORK/blix/home/przvl/config/oxwm/config.lua" > "$seed/oxwm.lua"
     put_file "$seed/oxwm.lua" "$cfg/oxwm/config.lua"

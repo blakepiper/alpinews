@@ -56,7 +56,8 @@ configuration, plus the st config and patches. Source revisions are recorded in
   JetBrainsMono Nerd Font, and the built-in battery/RAM/CPU/clock bar.
 - st 0.9.3 with Blix's font/palette, 5,000-line scrollback, keyboard/mouse
   scrolling, clickable URLs and copy/paste. No terminal server.
-- Blix's Seafoam/LazyVim UI, plugin lockfile, `nvimide` explorer/terminal layout,
+- Blix's complete Neovim configuration, unchanged, including its plugin lockfile
+  and `nvimide` explorer/terminal layout,
   and tmux mouse setting. `dev` opens the familiar editor-left, two-shells-right
   layout; the lower shell prints BusyBox system statistics instead of fastfetch.
 - US keyboard, 200 ms/50 Hz repeat, and Command/Alt swapping **only** for the
@@ -116,14 +117,28 @@ no sponsored/recommended home content, no studies/telemetry and blocked Firefox
 AI features. Check `about:policies` and `about:addons`. Existing conflicting
 policies are preserved unless `--replace-config` is used.
 
-**Neovim does not silently download a development environment.** The Blix UI
-and plugin versions are retained, but automatic update checks, Mason-managed
-binaries and Tree-sitter are disabled; completion uses its Lua implementation.
-This avoids glibc-only downloads and compiler requirements after setup. Plugins
-still download on first editor launch. Use native Alpine packages for language
-servers/formatters and edit `lua/plugins/alpinews.lua` to enable those features.
-The initial lockfile seeds the writable state lockfile, as in Blix. No Codex,
-Parsec, Node, Python, or language SDK is installed by this desktop profile.
+**Neovim follows Blix, without an Alpine-specific variant.** The installer copies
+`home/przvl/config/nvim` byte-for-byte from Blix commit
+`4a4b8017d07421796047e12edceba87e21e3f24e`, verified as Blix's latest `main`
+on September 20, 2026. It does not rewrite Lua files, add plugin overrides,
+disable Mason/Tree-sitter, change completion, or alter update checks. `nvimide`
+sets the original `BLIX_NVIMIDE=1` flag. The source's color scheme is still named
+`seafoam`; that name is part of Blix's own configuration, not a separate editor
+setup chosen by AlpineWS.
+
+Plugin downloads, updates, language-tool installation and the writable state
+lockfile now follow Blix's configuration. Those operations have not been verified
+on Alpine; the unmodified configuration is not a guarantee that every plugin or
+external tool works on this system. The desktop installer still does not install
+Codex, Parsec, Node, Python or language SDKs. No plugin or language-tool state is
+erased by this correction.
+
+For an existing AlpineWS installation, run `git pull --ff-only`, then
+`sh install.sh --config-only --replace-config` from the repository. This backs up
+and replaces differing managed user configuration, including the entire Neovim
+directory, so the previous `lua/plugins/alpinews.lua` override is removed from
+the active config rather than left behind by a directory merge. Other differing
+managed user files are also backed up and replaced by this command.
 
 **Session processes.** Hotplug waits for udev events. A small XFixes
 listener records at most 100 plain-text clipboard entries, capped at 1 MiB each.
@@ -162,13 +177,16 @@ processes before removing the stale `alpinews-session` directory inside
 
 ```sh
 sh tests/test.sh       # Offline shell/config/monitor tests
+sh tests/nvim-config.sh # Blix copy, override migration and nvimide regression tests
 sh tests/smoke.sh      # Post-install command checks, from the normal user
 ```
 
 Offline tests were run with BusyBox ash **and BusyBox utilities**. JSON policies
 were parsed separately. Preservation/replacement, symlink safety, whole-directory
 backups, repository guards, screenshot cancellation, mirroring, disconnect recovery and renamed connectors
-are exercised with temporary files and mocked xrandr output.
+are exercised with temporary files and mocked xrandr output. The Neovim regression
+test uses a fixture checkout to check an unchanged copy, preservation, replacement
+with a backup, and launcher arguments. It does not run Neovim or fetch plugins.
 
 The full Alpine package installation, Zig builds, Xorg session, Firefox policy
 activation, keyboard/mouse hardware, HDMI, sound and suspend were **not run on a
