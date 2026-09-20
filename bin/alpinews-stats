@@ -1,0 +1,6 @@
+#!/bin/sh
+printf 'AlpineWS | %s | %s\n' "$(hostname)" "$(uname -r)"
+printf '\n'
+free -m
+printf '\n'
+uptime

@@ -1,0 +1,1 @@
+ACTION!="remove", SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_MOUSE}=="1", ENV{ID_INPUT_POINTINGSTICK}!="1", ENV{ID_INPUT_TOUCHPAD}!="1", ENV{ID_INPUT_TABLET}!="1", ENV{ID_INPUT.tags}="$env{ID_INPUT.tags},alpinews-mouse"

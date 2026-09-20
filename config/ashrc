@@ -1,0 +1,8 @@
+# Read by interactive BusyBox ash, not by noninteractive scripts.
+case $- in *i*) ;; *) return ;; esac
+export PATH="$HOME/.local/bin:$PATH"
+export EDITOR=nvim VISUAL=nvim
+PS1='\u@\h:\w\$ '
+alias ll='ls -lah'
+alias vim='nvim'
+alias v='nvim'

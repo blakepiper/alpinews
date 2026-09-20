@@ -1,0 +1,4 @@
+# AlpineWS: keep the BusyBox login shell. X remains an explicit startx command.
+export PATH="$HOME/.local/bin:$PATH"
+export EDITOR=nvim VISUAL=nvim
+export ENV="${XDG_CONFIG_HOME:-$HOME/.config}/ash/rc"

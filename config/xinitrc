@@ -1,0 +1,72 @@
+#!/bin/sh
+# Manual console X session. No display manager, compositor or logind.
+set -u
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+export EDITOR=nvim VISUAL=nvim
+export ENV="${XDG_CONFIG_HOME:-$HOME/.config}/ash/rc"
+export XDG_CURRENT_DESKTOP=OXWM XDG_SESSION_TYPE=x11
+export GTK_THEME=Adwaita:dark
+export MOZ_ENABLE_WAYLAND=0
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    exec dbus-run-session -- "$0"
+fi
+uid=$(id -u)
+XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp/alpinews-runtime-$uid}
+export XDG_RUNTIME_DIR
+if [ ! -e "$XDG_RUNTIME_DIR" ]; then
+    (umask 077; mkdir "$XDG_RUNTIME_DIR") || exit 1
+fi
+[ ! -L "$XDG_RUNTIME_DIR" ] && [ -d "$XDG_RUNTIME_DIR" ] && \
+    [ "$(stat -c %u "$XDG_RUNTIME_DIR")" = "$uid" ] || {
+    echo 'Unsafe XDG_RUNTIME_DIR; refusing to start.' >&2; exit 1;
+}
+chmod 700 "$XDG_RUNTIME_DIR"
+session_lock="$XDG_RUNTIME_DIR/alpinews-session"
+mkdir "$session_lock" 2>/dev/null || {
+    echo "An AlpineWS session is already running, or its lock is stale: $session_lock" >&2
+    exit 1
+}
+export ALPINEWS_BATTERY=
+for battery in /sys/class/power_supply/*; do
+    [ -r "$battery/type" ] || continue
+    if [ "$(cat "$battery/type")" = Battery ]; then
+        ALPINEWS_BATTERY=${battery##*/}
+        export ALPINEWS_BATTERY
+        break
+    fi
+done
+logdir=${XDG_STATE_HOME:-$HOME/.local/state}/alpinews
+mkdir -p "$logdir"
+chmod 700 "$logdir"
+pids=''
+cleanup() {
+    trap - EXIT
+    for pid in $pids; do kill "$pid" 2>/dev/null || :; done
+    for pid in $pids; do wait "$pid" 2>/dev/null || :; done
+    rm -rf "$XDG_RUNTIME_DIR/alpinews-clipboard"
+    rm -f "$XDG_RUNTIME_DIR/alpinews-cpu"
+    rmdir "$session_lock" 2>/dev/null || :
+}
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+xsetroot -solid '#1a1b26'
+xset r rate 200 50
+xset s off
+xset +dpms
+xset dpms 0 0 0
+alpinews-monitors || :
+# The stock packages contain OpenRC user units, but this X session owns its
+# audio processes. Do not enable those units in parallel.
+pipewire > "$logdir/pipewire.log" 2>&1 & pids="$pids $!"
+# Wait only during startup, not an idle polling daemon.
+tries=0
+while [ ! -S "$XDG_RUNTIME_DIR/pipewire-0" ] && [ "$tries" -lt 50 ]; do
+    sleep 0.1
+    tries=$((tries + 1))
+done
+wireplumber > "$logdir/wireplumber.log" 2>&1 & pids="$pids $!"
+pipewire-pulse > "$logdir/pipewire-pulse.log" 2>&1 & pids="$pids $!"
+alpinews-hotplug > "$logdir/hotplug.log" 2>&1 & pids="$pids $!"
+alpinews-clipwatch > "$logdir/clipboard.log" 2>&1 & pids="$pids $!"
+oxwm & wm=$!; pids="$pids $wm"
+wait "$wm"
