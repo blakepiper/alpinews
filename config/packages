@@ -29,9 +29,6 @@ neovim
 tree-sitter-cli
 zig
 musl-dev
-# Native musl tools remain usable even when Mason has no compatible download.
-lua-language-server
-stylua
 ripgrep
 fd
 curl

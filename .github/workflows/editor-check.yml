@@ -3,14 +3,6 @@ name: Blix editor bootstrap
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/editor-check.yml'
-      - 'config/packages'
-      - 'install.sh'
-      - 'lib/configure.sh'
-      - 'bin/cc'
-      - 'bin/c++'
-      - 'tests/editor-integration.lua'
   workflow_dispatch:
 
 permissions:
@@ -61,9 +53,12 @@ jobs:
             "$HOME/.local/share/nvim/mason/bin/stylua" --version
             "$HOME/.local/share/nvim/mason/bin/shfmt" --version
           '
+      - name: Exercise the unmodified parser configuration
+        run: |
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 210 nvim --headless "+lua dofile(vim.env.HOME .. \"/alpinews/tests/editor-integration.lua\")"' > /home/tester/editor-parsers.log 2>&1
       - name: Print editor diagnostics
         if: always()
         run: |
-          for f in /home/tester/editor-bootstrap.log /home/tester/editor-tools.log /home/tester/.local/state/nvim/mason.log; do
+          for f in /home/tester/editor-bootstrap.log /home/tester/editor-tools.log /home/tester/editor-parsers.log /home/tester/.local/state/nvim/mason.log; do
             if [ -f "$f" ]; then printf '\n--- %s ---\n' "$f"; tail -n 100 "$f"; fi
           done
