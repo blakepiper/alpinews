@@ -12,7 +12,7 @@ jobs:
   editor:
     runs-on: ubuntu-latest
     container: alpine:3.24
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         shell: sh -eu {0}
@@ -53,10 +53,12 @@ jobs:
             prepare_editor
             prepare_editor
           '
-      - name: Bootstrap the unmodified Blix plugins
+      - name: Bootstrap Blix plugins and verify completed parser copies
         id: bootstrap
         run: |
-          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 240 nvim --headless "+Lazy! restore" "+lua if vim.v.errmsg ~= string.char() then io.stderr:write(vim.v.errmsg); vim.cmd.cquit(1) end" "+qa!"' > /home/tester/editor-bootstrap.log 2>&1
+          # Lazy restore does not wait for asynchronous Tree-sitter installs.
+          # Keep this Neovim process alive until the safeguarded parser test completes.
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 480 nvim --headless "+Lazy! restore" "+lua dofile(vim.env.HOME .. \"/alpinews/tests/editor-integration.lua\")"' > /home/tester/editor-bootstrap.log 2>&1
           if grep -E 'Error (detected|in)|E[0-9]{3,}:|Failed to run.*config|No C compiler found|Failed to build|Failed to load' /home/tester/editor-bootstrap.log; then
             exit 1
           fi
@@ -69,7 +71,7 @@ jobs:
             "$HOME/.local/share/nvim/mason/bin/stylua" --version
             "$HOME/.local/share/nvim/mason/bin/shfmt" --version
           '
-      - name: Exercise the unmodified parser configuration
+      - name: Verify parser loading on a second editor start
         if: ${{ !cancelled() && steps.bootstrap.outcome == 'success' }}
         run: |
           # The earlier short-lived Neovim commands can interrupt automatic parser

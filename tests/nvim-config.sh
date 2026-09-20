@@ -15,7 +15,8 @@ ROOT="$test_dir/installer"
 WORK="$test_dir/work"
 HOME="$test_dir/home"
 XDG_CONFIG_HOME="$HOME/.config"
-export ROOT WORK HOME XDG_CONFIG_HOME
+XDG_DATA_HOME="$test_dir/xdg data"
+export ROOT WORK HOME XDG_CONFIG_HOME XDG_DATA_HOME
 upstream="$WORK/blix/home/przvl/config"
 mkdir -p "$ROOT/config" "$ROOT/bin" "$HOME" \
     "$upstream/nvim/lua/config" "$upstream/nvim/lua/plugins" \
@@ -63,6 +64,11 @@ cp -R "$upstream/nvim" "$test_dir/original"
 REPLACE_CONFIG=0
 export REPLACE_CONFIG
 configure_user
+# The runtime root must exist before first launch, with custom and default XDG
+# paths. Reruns must not remove already installed parsers.
+[ -d "$XDG_DATA_HOME/nvim/site/parser" ] || die 'Missing initial parser runtime directory.'
+printf keep > "$XDG_DATA_HOME/nvim/site/parser/preserved.so"
+(unset XDG_DATA_HOME; configure_user; test -d "$HOME/.local/share/nvim/site/parser")
 # No tmux source exists in the fixture: any attempted import must fail.
 [ ! -e "$XDG_CONFIG_HOME/tmux" ] || die 'Installer created tmux configuration.'
 [ ! -e "$HOME/.local/bin/dev" ] || die 'Installer created the retired dev launcher.'
@@ -78,6 +84,7 @@ diff -qr "$upstream/nvim" "$installed"
 [ ! -e "$installed/lua/plugins/alpinews.lua" ]
 # An unchanged rerun must not produce a backup or alter the source checkout.
 configure_user
+[ "$(cat "$XDG_DATA_HOME/nvim/site/parser/preserved.so")" = keep ]
 for backup in "$installed".backup.*; do
     [ ! -e "$backup" ] || die 'Unchanged Neovim config produced a backup.'
 done
@@ -121,4 +128,4 @@ cmp "$test_dir/expected" "$NVIM_CALLS"
 printf '%s\n' 1 "$HOME" 1 'another file.lua' > "$test_dir/expected"
 cmp "$test_dir/expected" "$NVIM_CALLS"
 
-printf '\nPASS: unchanged Blix Neovim copy, override migration with backup, nvimide launcher, and no tmux provisioning.\n'
+printf '\nPASS: unchanged Blix copy, parser runtime directories, backups, nvimide and no tmux provisioning.\n'

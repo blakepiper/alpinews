@@ -1,0 +1,88 @@
+name: End-to-end install audit
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    container: alpine:3.24
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: sh -eu {0}
+    steps:
+      - name: Prepare disposable Alpine system
+        run: |
+          printf '%s\n' https://dl-cdn.alpinelinux.org/alpine/v3.24/main https://dl-cdn.alpinelinux.org/alpine/v3.24/community > /etc/apk/repositories
+          apk add --no-cache git curl ca-certificates doas openrc alpine-conf
+          adduser -D tester
+          printf 'permit nopass tester as root\n' > /etc/doas.conf
+          chmod 600 /etc/doas.conf
+          git init -q /home/tester/alpinews
+          git -C /home/tester/alpinews fetch --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git -C /home/tester/alpinews checkout -q --detach FETCH_HEAD
+          test "$(git -C /home/tester/alpinews rev-parse HEAD)" = "$GITHUB_SHA"
+          chown -R tester:tester /home/tester/alpinews
+          mkdir -p /run/openrc
+          touch /run/openrc/softlevel
+          # Containers cannot boot a device manager. Only these hardware-facing
+          # operations are stubbed; apk, doas, all builds and file writes are real.
+          apk add --no-cache eudev
+          setup=$(command -v setup-devd)
+          mv "$setup" "$setup.audit-original"
+          printf '#!/bin/sh\nprintf "AUDIT: device-manager startup deferred to hardware\\n"\n' > "$setup"
+          chmod 755 "$setup"
+          udev=$(command -v udevadm)
+          mv "$udev" "$udev.audit-original"
+          cat > "$udev" <<'SH'
+          #!/bin/sh
+          if [ "$#" = 2 ] && [ "$1" = control ] && [ "$2" = --reload-rules ]; then
+              echo 'AUDIT: device-manager rule reload deferred to hardware'
+              exit 0
+          fi
+          exec "$0.audit-original" "$@"
+          SH
+          chmod 755 "$udev"
+      - name: Run the complete non-root installer
+        id: installation
+        run: |
+          su tester -c 'set -e; cd ~/alpinews; sh install.sh --replace-config' > /home/tester/install.log 2>&1
+      - name: Check installed files and commands after build cleanup
+        run: |
+          su tester -c 'set -e; cd ~/alpinews; sh tests/test.sh; sh tests/nvim-config.sh; sh tests/compiler.sh; sh tests/battery.sh; sh tests/smoke.sh'
+          test -s /etc/firefox/policies/policies.json
+          test -s /etc/X11/xorg.conf.d/90-alpinews.conf
+          test -s /etc/doas.d/alpinews.conf
+          doas -C /etc/doas.d/alpinews.conf
+          test -x /usr/local/libexec/alpinews-power
+          test "$(stat -c %u /usr/local/libexec/alpinews-power)" = 0
+          for package in .alpinews-build bash tmux systemd; do
+            if apk info -e "$package"; then echo "Unexpected retained package: $package" >&2; exit 1; fi
+          done
+      - name: Verify Firefox installs the requested extensions
+        if: ${{ !cancelled() && steps.installation.outcome == 'success' }}
+        run: |
+          apk add --no-cache jq
+          su tester -c 'ALPINEWS_DISPOSABLE_TEST=1 timeout 210 sh ~/alpinews/tests/browser-integration.sh'
+      - name: Bootstrap plugins without interrupting parser compilation
+        if: ${{ !cancelled() && steps.installation.outcome == 'success' }}
+        id: editor
+        run: |
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 480 nvim --headless "+Lazy! restore" "+lua dofile(vim.env.HOME .. \"/alpinews/tests/editor-integration.lua\")"' > /home/tester/editor-audit.log 2>&1
+      - name: Confirm a second editor start and native language tools
+        if: ${{ !cancelled() && steps.editor.outcome == 'success' }}
+        run: |
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 90 nvim --headless "+lua dofile(vim.env.HOME .. \"/alpinews/tests/editor-integration.lua\")"'
+          su tester -c 'set -e; "$HOME/.local/share/nvim/mason/bin/lua-language-server" --version; "$HOME/.local/share/nvim/mason/bin/stylua" --version; "$HOME/.local/share/nvim/mason/bin/shfmt" --version'
+      - name: Print audit diagnostics
+        if: always()
+        run: |
+          for file in /home/tester/install.log /home/tester/editor-audit.log /home/tester/.local/state/alpinews/editor-tools.log; do
+            if [ -f "$file" ]; then printf '\n--- %s ---\n' "$file"; tail -n 100 "$file"; fi
+          done
