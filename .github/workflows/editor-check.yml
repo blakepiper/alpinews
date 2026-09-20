@@ -39,14 +39,16 @@ jobs:
             tree-sitter --version
           '
       - name: Bootstrap the unmodified Blix plugins
+        id: bootstrap
         run: |
           su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 240 nvim --headless "+Lazy! restore" "+lua if vim.v.errmsg ~= string.char() then io.stderr:write(vim.v.errmsg); vim.cmd.cquit(1) end" "+qa!"' > /home/tester/editor-bootstrap.log 2>&1
           if grep -E 'Error (detected|in)|E[0-9]{3,}:|Failed to run.*config|No C compiler found|Failed to build|Failed to load' /home/tester/editor-bootstrap.log; then
             exit 1
           fi
-      - name: Install and execute the actual Mason tools
+      - name: Install and execute the published musl Mason tools
         run: |
-          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 180 nvim --headless "+lua require(\"lazy\").load({plugins={\"mason.nvim\"}})" "+MasonInstall lua-language-server stylua shfmt" "+qa!"' > /home/tester/editor-tools.log 2>&1
+          # LuaLS 3.19.1 has no upstream musl archive; validate an actual published one.
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 180 nvim --headless "+lua require(\"lazy\").load({plugins={\"mason.nvim\"}})" "+MasonInstall lua-language-server@3.13.9 stylua shfmt" "+qa!"' > /home/tester/editor-tools.log 2>&1
           su tester -c '
             set -eu
             "$HOME/.local/share/nvim/mason/bin/lua-language-server" --version
@@ -54,6 +56,7 @@ jobs:
             "$HOME/.local/share/nvim/mason/bin/shfmt" --version
           '
       - name: Exercise the unmodified parser configuration
+        if: ${{ !cancelled() && steps.bootstrap.outcome == 'success' }}
         run: |
           su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 210 nvim --headless "+lua dofile(vim.env.HOME .. \"/alpinews/tests/editor-integration.lua\")"' > /home/tester/editor-parsers.log 2>&1
       - name: Print editor diagnostics
