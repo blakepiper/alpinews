@@ -13,7 +13,6 @@ configure_user() (
     put_file "$ROOT/config/xinitrc" "$HOME/.xinitrc" 755
     put_file "$ROOT/config/profile" "$HOME/.profile"
     put_file "$ROOT/config/ashrc" "$cfg/ash/rc"
-    put_file "$WORK/blix/home/przvl/config/tmux/tmux.conf" "$cfg/tmux/tmux.conf"
     put_file "$WORK/blix/home/przvl/config/mimeapps.list" "$cfg/mimeapps.list"
     put_file "$ROOT/config/display.conf" "$cfg/alpinews/display.conf"
     # Xfe rewrites history and layout into xferc. Seed it once, as Blix does.

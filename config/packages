@@ -26,7 +26,6 @@ xfe
 neovim
 ripgrep
 fd
-tmux
 curl
 git
 ca-certificates

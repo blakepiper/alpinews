@@ -57,9 +57,7 @@ configuration, plus the st config and patches. Source revisions are recorded in
 - st 0.9.3 with Blix's font/palette, 5,000-line scrollback, keyboard/mouse
   scrolling, clickable URLs and copy/paste. No terminal server.
 - Blix's complete Neovim configuration, unchanged, including its plugin lockfile
-  and `nvimide` explorer/terminal layout,
-  and tmux mouse setting. `dev` opens the familiar editor-left, two-shells-right
-  layout; the lower shell prints BusyBox system statistics instead of fastfetch.
+  and `nvimide` explorer/terminal layout. Run `nvim` or `nvimide` directly in st.
 - US keyboard, 200 ms/50 Hz repeat, and Command/Alt swapping **only** for the
   external `Gaming Keyboard` with USB ID `1fc9:e8c7`. The internal keyboard is
   not swapped. Touchpads use natural scrolling, tapping, clickfinger and
@@ -90,6 +88,12 @@ configuration, plus the st config and patches. Source revisions are recorded in
 Other bindings remain in `~/.config/oxwm/config.lua`. There is no reload key.
 
 ## Alpine-specific choices
+
+**No tmux.** The installer does not install tmux, import its configuration, or
+provide the old tmux-based `dev` launcher. OXWM manages terminal windows, and
+`nvimide` retains Blix's own editor/terminal layout. Updating an existing install
+does not uninstall an already installed tmux package or delete old user files;
+this change removes them from what the installer provisions.
 
 **Not literally GNU-free.** The shell and core command-line utilities stay
 BusyBox. Builds use Zig/LLVM rather than adding GCC, GNU make or binutils.
@@ -177,7 +181,7 @@ processes before removing the stale `alpinews-session` directory inside
 
 ```sh
 sh tests/test.sh       # Offline shell/config/monitor tests
-sh tests/nvim-config.sh # Blix copy, override migration and nvimide regression tests
+sh tests/nvim-config.sh # Blix copy, override migration, nvimide and no-tmux regression tests
 sh tests/smoke.sh      # Post-install command checks, from the normal user
 ```
 
@@ -186,7 +190,9 @@ were parsed separately. Preservation/replacement, symlink safety, whole-director
 backups, repository guards, screenshot cancellation, mirroring, disconnect recovery and renamed connectors
 are exercised with temporary files and mocked xrandr output. The Neovim regression
 test uses a fixture checkout to check an unchanged copy, preservation, replacement
-with a backup, and launcher arguments. It does not run Neovim or fetch plugins.
+with a backup, and launcher arguments. It also checks that tmux is absent from
+the package list and post-install checks, no tmux configuration is created, and
+the retired `dev` launcher is not shipped. It does not run Neovim or fetch plugins.
 
 The full Alpine package installation, Zig builds, Xorg session, Firefox policy
 activation, keyboard/mouse hardware, HDMI, sound and suspend were **not run on a

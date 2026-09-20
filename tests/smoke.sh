@@ -4,7 +4,7 @@ set -u
 fail=0
 check() { if "$@"; then printf 'PASS: %s\n' "$*"; else printf 'FAIL: %s\n' "$*"; fail=1; fi; }
 export PATH="$HOME/.local/bin:$PATH"
-for cmd in oxwm st nvim tmux firefox xfe dmenu pipewire wireplumber wpctl i3lock \
+for cmd in oxwm st nvim firefox xfe dmenu pipewire wireplumber wpctl i3lock \
     brightnessctl xrandr xclip alpinews-monitors alpinews-clipwatch; do
     check command -v "$cmd"
 done

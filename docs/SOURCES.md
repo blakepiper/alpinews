@@ -4,7 +4,7 @@
 
 - Blix: `4a4b8017d07421796047e12edceba87e21e3f24e`
   <https://github.com/blakepiper/blix/tree/4a4b8017d07421796047e12edceba87e21e3f24e>
-  OXWM/Neovim/tmux/MIME configuration under `home/przvl/config`, st/OXWM patches
+  OXWM/Neovim/MIME configuration under `home/przvl/config`, st/OXWM patches
   under `packaging`, browser policies under `home/przvl/programs/browser.nix`,
   T490 monitor settings in `hosts/t490/home.nix`, and input/Wi-Fi preferences in
   `modules/common/desktop-session.nix` and `hosts/t490/default.nix`.

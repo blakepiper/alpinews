@@ -19,14 +19,13 @@ export ROOT WORK HOME XDG_CONFIG_HOME
 upstream="$WORK/blix/home/przvl/config"
 mkdir -p "$ROOT/config" "$ROOT/bin" "$HOME" \
     "$upstream/nvim/lua/config" "$upstream/nvim/lua/plugins" \
-    "$upstream/oxwm" "$upstream/tmux"
+    "$upstream/oxwm"
 for file in xinitrc profile ashrc display.conf xferc gtk.ini; do
     printf '# fixture\n' > "$ROOT/config/$file"
 done
 # Kept in the fixture so this test catches the old override-injection code.
 printf 'return { { "mason-org/mason.nvim", enabled = false } }\n' > "$ROOT/config/nvim-alpine.lua"
 cp "$SOURCE_ROOT/bin/nvimide" "$ROOT/bin/nvimide"
-printf '%s\n' 'set -g mouse on' > "$upstream/tmux/tmux.conf"
 printf '%s\n' '[Default Applications]' > "$upstream/mimeapps.list"
 printf '%s\n' '-- OXWM fixture' > "$upstream/oxwm/config.lua"
 cat > "$upstream/nvim/init.lua" <<'LUA'
@@ -64,6 +63,16 @@ cp -R "$upstream/nvim" "$test_dir/original"
 REPLACE_CONFIG=0
 export REPLACE_CONFIG
 configure_user
+# No tmux source exists in the fixture: any attempted import must fail.
+[ ! -e "$XDG_CONFIG_HOME/tmux" ] || die 'Installer created tmux configuration.'
+[ ! -e "$HOME/.local/bin/dev" ] || die 'Installer created the retired dev launcher.'
+[ ! -e "$SOURCE_ROOT/bin/dev" ] || die 'Retired tmux launcher is still shipped.'
+if grep -q '^tmux$' "$SOURCE_ROOT/config/packages"; then
+    die 'Runtime packages still include tmux.'
+fi
+if grep -q 'tmux' "$SOURCE_ROOT/tests/smoke.sh"; then
+    die 'Post-install checks still require tmux.'
+fi
 installed="$XDG_CONFIG_HOME/nvim"
 diff -qr "$upstream/nvim" "$installed"
 [ ! -e "$installed/lua/plugins/alpinews.lua" ]
@@ -112,4 +121,4 @@ cmp "$test_dir/expected" "$NVIM_CALLS"
 printf '%s\n' 1 "$HOME" 1 'another file.lua' > "$test_dir/expected"
 cmp "$test_dir/expected" "$NVIM_CALLS"
 
-printf '\nPASS: unchanged Blix Neovim copy, override migration with backup, and nvimide launcher.\n'
+printf '\nPASS: unchanged Blix Neovim copy, override migration with backup, nvimide launcher, and no tmux provisioning.\n'
