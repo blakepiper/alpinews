@@ -1,0 +1,51 @@
+name: Blix editor bootstrap
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/editor-check.yml'
+      - 'config/packages'
+      - 'install.sh'
+      - 'lib/configure.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor:
+    runs-on: ubuntu-latest
+    container: alpine:3.24
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: sh -eu {0}
+    steps:
+      - name: Install the runtime-only environment and pinned editor configuration
+        run: |
+          apk add --no-cache git curl ca-certificates
+          adduser -D tester
+          git init -q /home/tester/alpinews
+          git -C /home/tester/alpinews fetch --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git -C /home/tester/alpinews checkout -q --detach FETCH_HEAD
+          set -- $(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' /home/tester/alpinews/config/packages)
+          apk add --no-cache "$@"
+          rev=$(sed -n 's/^BLIX_REV=//p' /home/tester/alpinews/install.sh)
+          test -n "$rev"
+          git init -q /home/tester/blix
+          git -C /home/tester/blix fetch --depth=1 https://github.com/blakepiper/blix.git "$rev"
+          git -C /home/tester/blix checkout -q --detach FETCH_HEAD
+          mkdir -p /home/tester/.config
+          cp -R /home/tester/blix/home/przvl/config/nvim /home/tester/.config/nvim
+          chown -R tester:tester /home/tester
+      - name: Bootstrap the unmodified Blix plugins
+        run: |
+          su tester -c 'timeout 240 nvim --headless "+Lazy! restore" "+lua if vim.v.errmsg ~= string.char() then error(vim.v.errmsg) end" "+qa!"' > /home/tester/editor-bootstrap.log 2>&1
+          if grep -E 'Error detected while processing|Failed to run.*config|No C compiler found|Failed to build|Failed to load' /home/tester/editor-bootstrap.log; then
+            exit 1
+          fi
+      - name: Print editor diagnostics
+        if: always()
+        run: |
+          test ! -f /home/tester/editor-bootstrap.log || cat /home/tester/editor-bootstrap.log
