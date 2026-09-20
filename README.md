@@ -1,8 +1,8 @@
 # AlpineWS
 
-A small **Alpine Linux 3.24 x86_64 post-install profile for the ThinkPad T490**.
+An **Alpine Linux 3.24 x86_64 post-install profile for the ThinkPad T490**.
 BusyBox ash, musl, OpenRC, Xorg, OXWM and patched st. No desktop environment,
-graphical login manager, compositor, systemd, elogind, Bash configuration,
+graphical login manager, compositor, systemd init, elogind, Bash configuration,
 GNU coreutils replacement, Nix, containers, or background optimization suite.
 
 This does **not install Alpine or partition a disk**. Install Alpine in `sys`
@@ -13,10 +13,10 @@ hooks. The installer never writes or pushes to Blix or Minarch.
 
 ## Install
 
-Use the current Alpine **3.24** Standard x86_64 installer, not edge. Enable HTTPS
-`v3.24/main` in `/etc/apk/repositories`; this script adds the same mirror's
-`v3.24/community` if needed. It rejects mixed releases, edge and non-HTTPS repos.
-Do not run this on the live ISO or inside an existing Arch/NixOS installation.
+Use Alpine **3.24** Standard x86_64, not edge. Enable HTTPS `v3.24/main` in
+`/etc/apk/repositories`; this script adds the same mirror's `v3.24/community`
+if needed. It rejects mixed releases, edge and non-HTTPS repos. Do not run this
+on the live ISO or inside an existing Arch/NixOS installation.
 
 As your normal doas-capable user:
 
@@ -39,20 +39,27 @@ startx
 ```
 
 No autologin and no automatic X startup. Super+Shift+Q exits to the TTY.
-`--config-only` downloads the pinned configuration snapshot and seeds user files
-without root, packages or system changes. `--keep-build-deps` retains the Zig
-compiler and development headers; by default `.alpinews-build` is removed after
-success. An interrupted build can be rerun. Its error message explains how to
-remove temporary build packages or clear an abandoned installation lock.
+`--config-only` fetches the pinned configuration and seeds user files without
+root, packages or system changes. It does not repair missing packages.
+`--keep-build-deps` retains the temporary desktop-build dependency group;
+otherwise `.alpinews-build` is removed after success. **Zig and musl headers
+remain installed because Blix's Neovim needs a compiler for parsers later.**
+An interrupted build can be rerun. Its error message explains how to remove
+temporary build packages or clear an abandoned installation lock.
+
+For an existing checkout, use `git pull --ff-only`, then rerun the full
+`sh install.sh --replace-config` to receive both package and configuration fixes.
+Review the backup messages: this replaces all differing managed user defaults,
+not just Neovim. Backups and user plugin/tool state are not deleted.
 
 ## What matches Blix
 
 The installer reads a fixed, reviewed Blix commit, rather than following its
-moving main branch. It imports the complete OXWM Lua configuration and Neovim
-configuration, plus the st config and patches. Source revisions are recorded in
+moving main branch. It imports OXWM and Neovim configuration, plus st config
+and patches. Source revisions are recorded in
 `~/.local/state/alpinews/sources.txt`.
 
-- Dwindle on all nine tags, 8 px gaps, 2 px borders, the dark/seafoam palette,
+- Dwindle on all nine tags, 8 px gaps, 2 px borders, Blix's colors,
   JetBrainsMono Nerd Font, and the built-in battery/RAM/CPU/clock bar.
 - st 0.9.3 with Blix's font/palette, 5,000-line scrollback, keyboard/mouse
   scrolling, clickable URLs and copy/paste. No terminal server.
@@ -92,85 +99,79 @@ Other bindings remain in `~/.config/oxwm/config.lua`. There is no reload key.
 **No tmux.** The installer does not install tmux, import its configuration, or
 provide the old tmux-based `dev` launcher. OXWM manages terminal windows, and
 `nvimide` retains Blix's own editor/terminal layout. Updating an existing install
-does not uninstall an already installed tmux package or delete old user files;
-this change removes them from what the installer provisions.
+does not uninstall an already installed tmux package or delete old user files.
 
 **Not literally GNU-free.** The shell and core command-line utilities stay
 BusyBox. Builds use Zig/LLVM rather than adding GCC, GNU make or binutils.
-Stock Firefox/GTK/C++ packages may still require GNU runtime libraries, and st
-keeps ncurses terminfo. Stripping necessary libraries is not a supported way to
-make this application stack smaller. GPL-licensed software is not automatically
-a GNU component.
+Stock Firefox/GTK/C++ packages still require runtime libraries; st keeps ncurses
+terminfo. Removing required libraries is not a supported way to shrink this
+stack. GPL-licensed software is not automatically a GNU component.
 
-**Small, usable audio stack.** PipeWire, its PulseAudio compatibility process,
-and WirePlumber run only with X. There is no separate PulseAudio server and no
-parallel OpenRC user audio service. The installer enables only the system D-Bus
-service and Alpine's eudev device management for the desktop. It does not add
-Bluetooth, printing, discovery, automounting, SSH servers, portals or power
-management daemons. Audio/video/render group permissions are used instead of
-elogind. Intel i915 and Intel Wi-Fi firmware, Intel microcode and the Intel media
-driver support the T490's integrated graphics/Wi-Fi configuration. Intel Wi-Fi
-power saving is disabled to match the T490 Blix setting.
+**Audio and hardware.** PipeWire, its PulseAudio compatibility process, and
+WirePlumber run only with X. There is no separate PulseAudio server and no
+parallel OpenRC user audio service. The desktop enables system D-Bus and Alpine's
+eudev device management. It does not add Bluetooth, printing, discovery,
+automounting, SSH servers, portals or power-management daemons. Audio/video/render
+group permissions are used instead of elogind. Intel i915 and Intel Wi-Fi firmware,
+Intel microcode and the Intel media driver target the T490's integrated graphics
+and Wi-Fi. Intel Wi-Fi power saving is disabled to match the T490 Blix setting.
 
-**Firefox is preconfigured, not bundled with unsigned extensions.** The policy
-installs uBlock Origin, Dark Reader and Enhancer for YouTube from Mozilla on
-Firefox's first connected launch, including private windows. Firefox retains
-extension signature verification and normal extension updates. Policies also
-set strict tracking protection, Global Privacy Control, dark content defaults,
+**Firefox.** Policy installs uBlock Origin, Dark Reader and Enhancer for YouTube
+from Mozilla on the first connected launch, including private windows. Signature
+verification and normal extension updates remain enabled. Policies also set
+strict tracking protection, Global Privacy Control, dark content defaults,
 no sponsored/recommended home content, no studies/telemetry and blocked Firefox
-AI features. Check `about:policies` and `about:addons`. Existing conflicting
+AI features. Check `about:policies` and `about:addons`. Conflicting existing
 policies are preserved unless `--replace-config` is used.
 
 **Neovim follows Blix, without an Alpine-specific variant.** The installer copies
 `home/przvl/config/nvim` byte-for-byte from Blix commit
-`4a4b8017d07421796047e12edceba87e21e3f24e`, verified as Blix's latest `main`
+`4a4b8017d07421796047e12edceba87e21e3f24e`, checked against Blix's `main`
 on September 20, 2026. It does not rewrite Lua files, add plugin overrides,
 disable Mason/Tree-sitter, change completion, or alter update checks. `nvimide`
 sets the original `BLIX_NVIMIDE=1` flag. The source's color scheme is still named
-`seafoam`; that name is part of Blix's own configuration, not a separate editor
-setup chosen by AlpineWS.
+`seafoam`; that is part of Blix's configuration, not an alternative setup.
 
-Plugin downloads, updates, language-tool installation and the writable state
-lockfile now follow Blix's configuration. Those operations have not been verified
-on Alpine; the unmodified configuration is not a guarantee that every plugin or
-external tool works on this system. The desktop installer still does not install
-Codex, Parsec, Node, Python or language SDKs. No plugin or language-tool state is
-erased by this correction.
+Keeping that editor means retaining its actual prerequisites: `tree-sitter-cli`,
+`zig`, and `musl-dev`. Alpine's Tree-sitter CLI pulls in Node.js. Small `cc` and
+`c++` wrappers in `~/.local/bin` invoke `zig cc` and `zig c++`, so the editor can
+find a compiler without installing GCC. These tools use disk space but are not
+idle services. This is not the smallest possible editor installation.
 
-For an existing AlpineWS installation, run `git pull --ff-only`, then
-`sh install.sh --config-only --replace-config` from the repository. This backs up
-and replaces differing managed user configuration, including the entire Neovim
-directory, so the previous `lua/plugins/alpinews.lua` override is removed from
-the active config rather than left behind by a directory merge. Other differing
-managed user files are also backed up and replaced by this command.
+Plugin downloads, updates, Mason tools and the writable state lockfile follow
+Blix's configuration. The installer does not add duplicate system copies of
+Mason's Lua language server or formatter. First launch needs network access and
+time for plugin/tool downloads and parser compilation. Not every future Mason
+package supports musl; this profile does not install glibc compatibility layers.
+Codex, Parsec, Python and general-purpose language SDK collections are not added.
 
-**Session processes.** Hotplug waits for udev events. A small XFixes
-listener records at most 100 plain-text clipboard entries, capped at 1 MiB each.
-It skips image-only selections so screenshot pastes remain intact. History is
-private but can contain passwords or secrets; `clipboard-history --clear`
-clears it, and a normal X-session exit deletes it. Do not treat clipboard history
-as a secret store. There are no idle lock/blanking timers or compositor.
+**Session processes.** The runtime directory is validated before starting the
+session D-Bus, so audio and other children inherit the same private path. Hotplug
+waits for udev events. A small XFixes listener records at most 100 plain-text
+clipboard entries, capped at 1 MiB each. It skips image-only selections so
+screenshots can be pasted. History is private but can contain secrets;
+`clipboard-history --clear` clears it, and a normal X-session exit deletes it.
+There are no idle lock/blanking timers or compositor.
 
 ## Locking and power
 
 Super+L uses i3lock. Control-menu suspend runs the locker first and proceeds
 only after it successfully daemonizes with input grabbed. Reboot, poweroff and
-logout require a Yes confirmation. Doas grants this user only three exact,
-argument-restricted operations through a root-owned helper; it does not grant a
-passwordless root shell. The installer itself still needs normal doas access.
+logout require confirmation. Doas grants this user only three exact,
+argument-restricted operations through a root-owned helper, not a passwordless
+root shell. The installer still needs normal doas access.
 
-This small profile has **no global suspend inhibitor or automatic lid-lock
-service**. Only control-menu suspend has the lock-before-suspend sequence.
-Existing ACPI handlers are left untouched: inspect `/etc/acpi/handler.sh` before
-relying on lid-close behavior. A suspend from another program/root or an existing
-lid handler bypasses that sequence. Test lock/resume on the actual T490 before
-relying on it.
+There is **no global suspend inhibitor or automatic lid-lock service**. Only
+control-menu suspend has the lock-before-suspend sequence. Existing ACPI handlers
+are left untouched: inspect `/etc/acpi/handler.sh` before relying on lid-close
+behavior. Suspend from another program/root or an existing lid handler bypasses
+that sequence. Test lock/resume on the actual T490 before relying on it.
 
 Alpine's Xorg build lacks logind integration. This profile uses its console-only
-root Xorg wrapper. VT switching and the X-server kill shortcut are disabled
-while X runs, so a locked screen cannot simply reveal its logged-in parent TTY.
-Exit OXWM to return to the console. This is a security/complexity tradeoff, not a
-claim that a root X server is equivalent to a sandboxed Wayland session.
+root Xorg wrapper. VT switching and the X-server kill shortcut are disabled while
+X runs, so a locked screen cannot simply reveal its logged-in parent TTY. Exit
+OXWM to return to the console. A root X server has a different security model
+from a sandboxed Wayland session.
 
 Only one managed X session per user is supported. Session logs are in
 `~/.local/state/alpinews/`. After an unclean crash, check for surviving X/audio
@@ -180,26 +181,40 @@ processes before removing the stale `alpinews-session` directory inside
 ## Validation and limits
 
 ```sh
-sh tests/test.sh       # Offline shell/config/monitor tests
-sh tests/nvim-config.sh # Blix copy, override migration, nvimide and no-tmux regression tests
-sh tests/smoke.sh      # Post-install command checks, from the normal user
+sh tests/test.sh        # Offline shell/config/monitor tests
+sh tests/nvim-config.sh # Unchanged Blix copy, backups, nvimide and no-tmux checks
+sh tests/smoke.sh       # Post-install command checks, as the normal user
 ```
 
-Offline tests were run with BusyBox ash **and BusyBox utilities**. JSON policies
-were parsed separately. Preservation/replacement, symlink safety, whole-directory
-backups, repository guards, screenshot cancellation, mirroring, disconnect recovery and renamed connectors
-are exercised with temporary files and mocked xrandr output. The Neovim regression
-test uses a fixture checkout to check an unchanged copy, preservation, replacement
-with a backup, and launcher arguments. It also checks that tmux is absent from
-the package list and post-install checks, no tmux configuration is created, and
-the retired `dev` launcher is not shipped. It does not run Neovim or fetch plugins.
+Two GitHub Actions workflows run in clean Alpine 3.24 x86_64 containers. Check
+[Actions](https://github.com/blakepiper/alpinews/actions) for results for the exact
+commit being installed; a workflow's existence alone does not mean it passed.
 
-The full Alpine package installation, Zig builds, Xorg session, Firefox policy
-activation, keyboard/mouse hardware, HDMI, sound and suspend were **not run on a
-T490 during authoring**. Network access from the authoring container was
-unavailable, so do not mistake shell tests for an installed-system test. This is
-an initial implementation requiring on-device verification, not a measured
-200 MiB idle-RAM claim. The installer fails on missing packages/build errors and
-never substitutes an unverified binary or mixes edge packages to work around one.
+`Alpine installation checks` installs the real runtime and build manifests,
+builds pinned OXWM, patched st and the clipboard listener as an unprivileged user,
+compares installed Neovim files against Blix, and removes the temporary build
+group. It then runs the installed X-session script under Xvfb and checks terminal
+execution, real screenshot PNG clipboard round-tripping, PipeWire/WirePlumber/
+PulseAudio-protocol connectivity, the OXWM quit binding and session cleanup.
 
-See [source provenance](docs/SOURCES.md) for the pinned inputs and primary references.
+`Blix editor bootstrap` uses the runtime manifest and the real config-only
+installer, checks the retained compiler, restores the Blix plugin versions,
+executes Mason-installed tools, and checks representative parser compilation
+and parsing. It does not change the copied editor configuration to make tests pass.
+The disposable session/editor integration tests belong in CI, not a live desktop.
+Xvfb and CI-only diagnostic packages are not desktop dependencies.
+
+Offline tests exercise preservation, backups, symlink safety, whole-directory
+replacement, repository guards, screenshot cancellation, mirrored outputs,
+unplugging and renamed connectors under BusyBox.
+
+**Still requires on-device verification:** boot/TTY-to-Xorg startup, the root
+service/device setup on a real installed system, Intel hardware acceleration,
+Wi-Fi, physical keyboard/mouse, HDMI hotplug, actual sound/microphone, Firefox
+extension activation, locking and suspend/resume. A successful container/Xvfb
+run is not a T490 hardware test or a measured idle-memory result. There is no
+promise of 200 MiB idle usage. Downloads and future upstream packages can also
+fail independently of this snapshot. Missing dependencies or failed builds stop
+the installer; it never mixes edge packages or substitutes unverified binaries.
+
+See [source provenance](docs/SOURCES.md) for pinned inputs and primary references.
