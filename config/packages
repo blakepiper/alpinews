@@ -1,4 +1,4 @@
-# Runtime only. No desktop meta-package, compositor, Bash or GNU CLI suite.
+# No desktop meta-package, compositor, Bash or GNU CLI suite.
 xorg-server
 xf86-input-libinput
 xinit
@@ -24,6 +24,14 @@ ncurses-terminfo-base
 firefox
 xfe
 neovim
+# Blix's unchanged editor compiles parsers after the desktop installer exits.
+# Alpine's tree-sitter-cli also depends on nodejs. Zig avoids adding GCC.
+tree-sitter-cli
+zig
+musl-dev
+# Native musl tools remain usable even when Mason has no compatible download.
+lua-language-server
+stylua
 ripgrep
 fd
 curl
