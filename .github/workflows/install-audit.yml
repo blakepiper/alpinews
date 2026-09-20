@@ -1,0 +1,107 @@
+name: End-to-end install audit
+
+on:
+  push:
+    branches: [main, audit/install-20260920]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    container: alpine:3.24
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: sh -eu {0}
+    steps:
+      - name: Prepare disposable Alpine system
+        run: |
+          printf '%s\n' https://dl-cdn.alpinelinux.org/alpine/v3.24/main https://dl-cdn.alpinelinux.org/alpine/v3.24/community > /etc/apk/repositories
+          apk add --no-cache git curl ca-certificates doas openrc alpine-conf
+          adduser -D tester
+          printf 'permit nopass tester as root\n' > /etc/doas.conf
+          chmod 600 /etc/doas.conf
+          git init -q /home/tester/alpinews
+          git -C /home/tester/alpinews fetch --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git -C /home/tester/alpinews checkout -q --detach FETCH_HEAD
+          chown -R tester:tester /home/tester/alpinews
+          mkdir -p /run/openrc
+          touch /run/openrc/softlevel
+          # Containers cannot boot a device manager. Only these hardware-facing
+          # operations are stubbed; apk, doas, all builds and file writes are real.
+          apk add --no-cache eudev
+          setup=$(command -v setup-devd)
+          mv "$setup" "$setup.audit-original"
+          printf '#!/bin/sh\nprintf "AUDIT: device-manager startup deferred to hardware\\n"\n' > "$setup"
+          chmod 755 "$setup"
+          udev=$(command -v udevadm)
+          mv "$udev" "$udev.audit-original"
+          cat > "$udev" <<'SH'
+          #!/bin/sh
+          if [ "$#" = 2 ] && [ "$1" = control ] && [ "$2" = --reload-rules ]; then
+              echo 'AUDIT: device-manager rule reload deferred to hardware'
+              exit 0
+          fi
+          exec "$0.audit-original" "$@"
+          SH
+          chmod 755 "$udev"
+      - name: Run the complete non-root installer
+        run: |
+          su tester -c 'set -e; cd ~/alpinews; sh install.sh --replace-config' > /home/tester/install.log 2>&1
+      - name: Check installed files and commands after build cleanup
+        run: |
+          su tester -c 'set -e; cd ~/alpinews; sh tests/test.sh; sh tests/nvim-config.sh; sh tests/compiler.sh; sh tests/smoke.sh'
+          test -s /etc/firefox/policies/policies.json
+          test -s /etc/X11/xorg.conf.d/90-alpinews.conf
+          test -s /etc/doas.d/alpinews.conf
+          doas -C /etc/doas.d/alpinews.conf
+          test -x /usr/local/libexec/alpinews-power
+          test "$(stat -c %u /usr/local/libexec/alpinews-power)" = 0
+          ! apk info -e .alpinews-build
+          ! apk info -e bash
+          ! apk info -e tmux
+          ! apk info -e systemd
+      - name: Bootstrap plugins and wait for parser builds in the same process
+        run: |
+          cat > /home/tester/wait-parsers.lua <<'LUA'
+          local ok, err = pcall(function()
+            require('lazy').load({ plugins = { 'nvim-treesitter' } })
+            local ts = require('nvim-treesitter')
+            local options = require('lazy.core.plugin').values(require('lazy.core.config').plugins['nvim-treesitter'], 'opts', false)
+            local wanted = options.ensure_installed
+            assert(type(wanted) == 'table' and #wanted > 0, 'No configured parser list')
+            assert(vim.wait(420000, function()
+              local installed = ts.get_installed()
+              for _, name in ipairs(wanted) do
+                if not vim.tbl_contains(installed, name) then return false end
+              end
+              return true
+            end, 100), 'Some configured parsers did not finish')
+            for _, name in ipairs(wanted) do
+              assert(vim.treesitter.language.add(name), 'Unable to load parser ' .. name)
+            end
+            for name, text in pairs({ bash = 'echo alpinews\n', json = '{"alpinews":true}' }) do
+              local parser = vim.treesitter.get_string_parser(text, name)
+              local trees = parser:parse()
+              assert(trees[1] and not trees[1]:root():has_error(), 'Invalid parse: ' .. name)
+            end
+            print('PASS: all ' .. #wanted .. ' configured parsers installed and loaded; bash/json parsed')
+          end)
+          if not ok then io.stderr:write(tostring(err), '\n'); vim.cmd.cquit(1) end
+          vim.cmd('qa!')
+          LUA
+          chown tester:tester /home/tester/wait-parsers.lua
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 480 nvim --headless "+Lazy! restore" "+lua dofile(vim.env.HOME .. \"/wait-parsers.lua\")"' > /home/tester/editor-audit.log 2>&1
+      - name: Confirm a second editor start and native language tools
+        run: |
+          su tester -c 'export PATH="$HOME/.local/bin:$PATH"; timeout 240 nvim --headless "+lua dofile(vim.env.HOME .. \"/alpinews/tests/editor-integration.lua\")"'
+          su tester -c 'set -e; "$HOME/.local/share/nvim/mason/bin/lua-language-server" --version; "$HOME/.local/share/nvim/mason/bin/stylua" --version; "$HOME/.local/share/nvim/mason/bin/shfmt" --version'
+      - name: Print audit diagnostics
+        if: always()
+        run: |
+          for file in /home/tester/install.log /home/tester/editor-audit.log /home/tester/.local/state/alpinews/editor-tools.log; do
+            if [ -f "$file" ]; then printf '\n--- %s ---\n' "$file"; tail -n 160 "$file"; fi
+          done
