@@ -9,12 +9,12 @@ build_desktop() (
         git apply --check "$p"
         git apply "$p"
     done
-    # Upstream requests an external linker. Use Zig/LLVM LLD instead of adding
-    # GNU binutils; this is the sole Alpine-specific build-system change.
+    # Use LLD, but keep the native target so Zig discovers Alpine's system
+    # headers and libraries. An explicit cross target disables that discovery.
     grep -q 'use_lld = false;' build.zig || die 'OXWM linker setting changed.'
     sed 's/use_lld = false;/use_lld = true;/g' build.zig > build.zig.new
     mv build.zig.new build.zig
-    zig build -j2 -Doptimize=ReleaseSmall -Dtarget=x86_64-linux-musl -Dcpu=baseline
+    zig build -j2 -Doptimize=ReleaseSmall -Dcpu=baseline
     mkdir -p "$HOME/.local/bin" "$HOME/.local/share/licenses/oxwm"
     # Executables are generated artifacts, not editable configuration.
     cp zig-out/bin/oxwm "$HOME/.local/bin/oxwm.new"
@@ -35,7 +35,7 @@ build_desktop() (
     cp "$WORK/blix/packaging/st/config.h" config.h
     # This is the upstream two-source-file build without a make dependency.
     # pkgconf output is intentionally word-split into compiler arguments.
-    zig cc -target x86_64-linux-musl -O2 -D_XOPEN_SOURCE=600 '-DVERSION="0.9.3"' \
+    zig cc -O2 -D_XOPEN_SOURCE=600 '-DVERSION="0.9.3"' \
         $(pkgconf --cflags x11 xft fontconfig) st.c x.c -o st \
         $(pkgconf --libs x11 xft fontconfig) -lutil -lm -lrt
     cp st "$HOME/.local/bin/st.new"
@@ -45,7 +45,7 @@ build_desktop() (
     cp st.1 "$HOME/.local/share/man/man1/st.1"
     cp LICENSE "$HOME/.local/share/licenses/st/LICENSE"
     log 'Building the event-driven clipboard listener'
-    zig cc -target x86_64-linux-musl -Os $(pkgconf --cflags x11 xfixes) \
+    zig cc -Os $(pkgconf --cflags x11 xfixes) \
         "$ROOT/src/clipwatch.c" -o "$HOME/.local/bin/alpinews-clipwatch.new" \
         $(pkgconf --libs x11 xfixes)
     chmod 755 "$HOME/.local/bin/alpinews-clipwatch.new"
